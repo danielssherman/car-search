@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bmw-blue: #1c69d4;
+  --bmw-dark: #0a0a0a;
+  --bmw-card: #141414;
+  --bmw-border: #2a2a2a;
+  --bmw-muted: #888888;
+}
+
+body {
+  background-color: var(--bmw-dark);
+  color: #ffffff;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bmw-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bmw-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--bmw-muted);
+}
+
+/* Price range slider */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--bmw-border);
+  border-radius: 2px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bmw-blue);
+  cursor: pointer;
+}
