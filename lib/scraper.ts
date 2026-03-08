@@ -9,6 +9,15 @@ interface DealerConfig {
   timeout?: number;
 }
 
+interface AlgoliaDealerConfig {
+  name: string;
+  city: string;
+  baseUrl: string;
+  appId: string;
+  apiKey: string;
+  indexName: string;
+}
+
 const DEALERS: DealerConfig[] = [
   {
     name: "Stevens Creek BMW",
@@ -45,6 +54,17 @@ const DEALERS: DealerConfig[] = [
     baseUrl: "https://www.marinbmw.com",
     searchUrl:
       "https://www.marinbmw.com/new-inventory/index.htm?search=3+Series",
+  },
+];
+
+const ALGOLIA_DEALERS: AlgoliaDealerConfig[] = [
+  {
+    name: "Peter Pan BMW",
+    city: "San Mateo",
+    baseUrl: "https://www.peterpanbmw.com",
+    appId: "SEWJN80HTN",
+    apiKey: "179608f32563367799314290254e3e44",
+    indexName: "peterpanbmw-sbm0125_production_inventory",
   },
 ];
 
@@ -308,6 +328,83 @@ async function scrapeDealer(
   return Array.from(vehicleMap.values());
 }
 
+async function scrapeAlgoliaDealer(
+  dealer: AlgoliaDealerConfig
+): Promise<ScrapedVehicle[]> {
+  const vehicles: ScrapedVehicle[] = [];
+  const url = `https://${dealer.appId}-dsn.algolia.net/1/indexes/${dealer.indexName}/query`;
+
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Algolia-API-Key": dealer.apiKey,
+        "X-Algolia-Application-Id": dealer.appId,
+      },
+      body: JSON.stringify({
+        query: "",
+        hitsPerPage: 200,
+        facetFilters: [["type:New"], ["model:3 Series"]],
+        attributesToRetrieve: [
+          "year", "make", "model", "trim", "vin", "stock",
+          "msrp", "our_price", "ext_color", "int_color",
+          "type", "packages", "link", "in_transit",
+        ],
+      }),
+    });
+
+    if (!resp.ok) {
+      console.log(`  Algolia API error: ${resp.status}`);
+      return vehicles;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any = await resp.json();
+    const hits = data.hits || [];
+    console.log(`  Algolia returned ${hits.length} hits (${data.nbHits} total)`);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const hit of hits) {
+      const trim = hit.trim || "";
+      const model = hit.model || "";
+      const classification = classifyModel(model, trim, trim);
+      if (!classification) continue;
+
+      const vin = hit.vin || "";
+      if (!vin) continue;
+
+      let msrp = parseInt(String(hit.msrp || 0).replace(/[^0-9]/g, ""));
+      if (!msrp) {
+        msrp = parseInt(String(hit.our_price || 0).replace(/[^0-9]/g, ""));
+      }
+
+      const link = hit.link || "";
+      const detailUrl = link || `${dealer.baseUrl}/new-vehicles/?vin=${vin}`;
+
+      vehicles.push({
+        vin,
+        year: hit.year || new Date().getFullYear(),
+        model: classification.model,
+        trim: classification.trim,
+        exterior_color: hit.ext_color || "Unknown",
+        interior_color: hit.int_color || "Unknown",
+        msrp,
+        dealer_name: dealer.name,
+        dealer_city: dealer.city,
+        status: hit.in_transit ? "In Transit" : "In Stock",
+        packages: extractPackages(hit.packages || []),
+        stock_number: hit.stock || "",
+        detail_url: detailUrl,
+      });
+    }
+  } catch (err) {
+    console.log(`  Algolia error: ${(err as Error).message}`);
+  }
+
+  return vehicles;
+}
+
 export async function scrapeAll(): Promise<ScrapedVehicle[]> {
   const allVehicles = new Map<string, ScrapedVehicle>();
   let browser: Browser | null = null;
@@ -342,6 +439,22 @@ export async function scrapeAll(): Promise<ScrapedVehicle[]> {
     console.error("Scraper failed:", err);
   } finally {
     if (browser) await browser.close();
+  }
+
+  // Scrape Algolia-based dealers (no browser needed)
+  for (const dealer of ALGOLIA_DEALERS) {
+    console.log(`Scraping ${dealer.name} (Algolia)...`);
+
+    try {
+      const vehicles = await scrapeAlgoliaDealer(dealer);
+      console.log(`  Final: ${vehicles.length} 330i/M340i vehicles`);
+
+      for (const v of vehicles) {
+        allVehicles.set(v.vin, v);
+      }
+    } catch (err) {
+      console.error(`  Failed: ${(err as Error).message}`);
+    }
   }
 
   console.log(`\nTotal unique vehicles: ${allVehicles.size}`);
