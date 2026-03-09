@@ -34,26 +34,11 @@ const DEALERS: DealerConfig[] = [
       "https://www.bmwoffremont.com/new-inventory/index.htm?search=3+Series",
   },
   {
-    name: "BMW of San Francisco",
-    city: "San Francisco",
-    baseUrl: "https://www.bmwofsanfrancisco.com",
-    searchUrl:
-      "https://www.bmwofsanfrancisco.com/new-inventory/index.htm?search=3+Series",
-    timeout: 45000,
-  },
-  {
-    name: "East Bay BMW",
-    city: "Pleasanton",
-    baseUrl: "https://www.eastbaybmw.com",
-    searchUrl:
-      "https://www.eastbaybmw.com/new-inventory/index.htm?search=3+Series",
-  },
-  {
-    name: "Marin BMW",
+    name: "BMW of San Rafael",
     city: "San Rafael",
-    baseUrl: "https://www.marinbmw.com",
+    baseUrl: "https://www.bmwofsanrafael.com",
     searchUrl:
-      "https://www.marinbmw.com/new-inventory/index.htm?search=3+Series",
+      "https://www.bmwofsanrafael.com/new-inventory/index.htm?search=3+Series",
   },
 ];
 
@@ -65,6 +50,14 @@ const ALGOLIA_DEALERS: AlgoliaDealerConfig[] = [
     appId: "SEWJN80HTN",
     apiKey: "179608f32563367799314290254e3e44",
     indexName: "peterpanbmw-sbm0125_production_inventory",
+  },
+  {
+    name: "BMW of San Francisco",
+    city: "San Francisco",
+    baseUrl: "https://www.bmwsf.com",
+    appId: "SEWJN80HTN",
+    apiKey: "179608f32563367799314290254e3e44",
+    indexName: "bmwofsanfrancisco_production_inventory",
   },
 ];
 

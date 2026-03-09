@@ -4,7 +4,7 @@ A full-stack web app that scrapes and tracks BMW 330i and M340i inventory across
 
 ## Features
 
-- **Automated inventory scraping** from 6 Bay Area BMW dealerships (Stevens Creek, Fremont, San Francisco, East Bay, Marin, Peter Pan)
+- **Automated inventory scraping** from 5 Bay Area BMW dealerships (Stevens Creek, Fremont, San Francisco, San Rafael, Peter Pan)
 - **Live dashboard** with sortable inventory table, aggregate stats, and color distribution
 - **Advanced filtering** by model, dealer, color, status (In Stock / In Transit), price range, and full-text search
 - **Vehicle comparison** — select up to 3 vehicles for side-by-side detail comparison
