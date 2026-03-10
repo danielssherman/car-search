@@ -1,22 +1,9 @@
 "use client";
 
 import type { Vehicle } from "@/lib/types";
+import { formatCurrency, daysOnLot } from "@/lib/utils";
 import { StatusBadge } from "./StatusBadge";
 import { X } from "lucide-react";
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function daysOnLot(firstSeen: string): number {
-  const first = new Date(firstSeen);
-  const now = new Date();
-  return Math.floor((now.getTime() - first.getTime()) / (1000 * 60 * 60 * 24));
-}
 
 function PriceCell({
   msrp,

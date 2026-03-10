@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense } from "react";
 import type { Vehicle, InventoryStats, DealerInfo } from "@/lib/types";
+import { triggerScrape } from "./actions";
 import { StatsBar } from "@/components/StatsBar";
 import { FilterBar } from "@/components/FilterBar";
 import { InventoryTable } from "@/components/InventoryTable";
@@ -165,21 +166,16 @@ function DashboardContent() {
   const handleScrape = async () => {
     setScraping(true);
     try {
-      const res = await fetch("/api/scrape", {
-        method: "POST",
-        headers: { "x-api-key": "bmw-tracker-secret-key-2024" },
-      });
-      const data = await res.json();
-      if (res.ok) {
+      const result = await triggerScrape();
+      if (result) {
         setToast(
-          `Scrape complete: ${data.found} vehicles found, ${data.newCount} new`
+          `Scrape complete: ${result.found} vehicles found, ${result.newCount} new`
         );
         fetchData();
-      } else {
-        setToast(`Scrape failed: ${data.error}`);
       }
-    } catch {
-      setToast("Scrape request failed");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Scrape request failed";
+      setToast(`Scrape failed: ${message}`);
     } finally {
       setScraping(false);
     }

@@ -39,13 +39,19 @@ The app will be available at `http://localhost:3000`.
 
 ### Environment Variables
 
-Create a `.env.local` file:
+Copy the example and fill in your values:
 
+```bash
+cp .env.example .env.local
 ```
-SCRAPE_API_KEY=your-secret-key
-DATABASE_PATH=./data/inventory.db
-SCRAPE_INTERVAL_HOURS=4
-```
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SCRAPE_API_KEY` | Secret key for the `/api/scrape` endpoint | *(required)* |
+| `DATABASE_PATH` | Path to the SQLite database file | `./data/inventory.db` |
+| `SCRAPE_INTERVAL_HOURS` | How often the background cron job scrapes | `4` |
+| `ALGOLIA_APP_ID` | Algolia application ID for dealer search | *(required for Algolia dealers)* |
+| `ALGOLIA_API_KEY` | Algolia search API key | *(required for Algolia dealers)* |
 
 ### Seed the Database
 
@@ -59,8 +65,10 @@ Or via the API:
 
 ```bash
 curl -X POST http://localhost:3000/api/scrape \
-  -H "x-api-key: your-secret-key"
+  -H "x-api-key: $SCRAPE_API_KEY"
 ```
+
+When running with `next start`, a background cron job automatically scrapes at the configured interval.
 
 ## API Routes
 

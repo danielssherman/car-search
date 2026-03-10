@@ -42,21 +42,24 @@ const DEALERS: DealerConfig[] = [
   },
 ];
 
+const ALGOLIA_APP_ID = process.env.ALGOLIA_APP_ID || "";
+const ALGOLIA_API_KEY = process.env.ALGOLIA_API_KEY || "";
+
 const ALGOLIA_DEALERS: AlgoliaDealerConfig[] = [
   {
     name: "Peter Pan BMW",
     city: "San Mateo",
     baseUrl: "https://www.peterpanbmw.com",
-    appId: "SEWJN80HTN",
-    apiKey: "179608f32563367799314290254e3e44",
+    appId: ALGOLIA_APP_ID,
+    apiKey: ALGOLIA_API_KEY,
     indexName: "peterpanbmw-sbm0125_production_inventory",
   },
   {
     name: "BMW of San Francisco",
     city: "San Francisco",
     baseUrl: "https://www.bmwsf.com",
-    appId: "SEWJN80HTN",
-    apiKey: "179608f32563367799314290254e3e44",
+    appId: ALGOLIA_APP_ID,
+    apiKey: ALGOLIA_API_KEY,
     indexName: "bmwofsanfrancisco_production_inventory",
   },
 ];
