@@ -28,14 +28,22 @@ Every vehicle is scored 0–100 after each scrape:
 | In-stock status | 0–10 | Available now beats in-transit |
 | Packages/features | 0–10 | More features = better value |
 
+## What Makes This Different
+
+This isn't another listing site. It's a **buyer's intelligence platform**.
+
+- **Cross-dealer price arbitrage** — the same VIN often appears at multiple dealers at different prices. We surface that so you can save thousands without negotiating.
+- **Dealer intelligence** — we track how each dealer prices over time, how often they drop prices, and how long cars sit. This tells you which dealers are most likely to negotiate and when to make your move.
+
 ## Roadmap
 
 - [x] **Phase 1** — Generalized data model & quality scoring
-- [ ] **Phase 2** — Aggregator scraping (Cars.com, CarGurus) for broad coverage across 400+ dealers
-- [ ] **Phase 3** — Dealer discovery & database-driven dealer configuration
-- [ ] **Phase 4** — Job queue (BullMQ) for parallel, resilient scraping
-- [ ] **Phase 5** — Map view, saved searches, price history, alerts
-- [ ] **Phase 6** — Data quality monitoring & anomaly detection
+- [ ] **Phase 2** — Multi-source data pipeline (Cars.com, CarGurus scrapers + price history tracking)
+- [ ] **Phase 3** — Dealer intelligence engine (dealer scores, markup patterns, negotiation room estimates)
+- [ ] **Phase 4** — Dealer discovery & database-driven config for 400+ Bay Area dealers
+- [ ] **Phase 5** — Scale & reliability (BullMQ job queue, PostgreSQL, monitoring)
+- [ ] **Phase 6** — Product UI (cross-dealer comparison, dealer profiles, price charts, alerts, map view)
+- [ ] **Phase 7** — Public launch (SEO, beta, monetization)
 
 ## Current Dealers (5)
 
