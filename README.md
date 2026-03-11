@@ -1,23 +1,59 @@
-# Bay Area BMW Tracker
+# Bay Area Car Tracker
 
-A full-stack web app that scrapes and tracks BMW 330i and M340i inventory across Bay Area dealerships. Monitor vehicle availability, pricing, and specs in real-time with a filterable dashboard and side-by-side comparison tool.
+Track new car inventory across every dealership in the Bay Area. Browse the top deals with a quality-scored, filterable dashboard and side-by-side comparison tool.
+
+**Goal:** Build a complete, always-current view of every car on every lot in the Bay Area — starting with BMW dealerships and expanding to all makes and brands.
 
 ## Features
 
-- **Automated inventory scraping** from 5 Bay Area BMW dealerships (Stevens Creek, Fremont, San Francisco, San Rafael, Peter Pan)
-- **Live dashboard** with sortable inventory table, aggregate stats, and color distribution
-- **Advanced filtering** by model, dealer, color, status (In Stock / In Transit), price range, and full-text search
+- **Multi-make inventory tracking** — generalized data model supports any make, model, and trim
+- **Quality scoring** — each vehicle gets a 0–100 score based on price vs. market average, days on lot, condition, mileage, availability, and features
+- **Top 100 by default** — dashboard surfaces the best-value vehicles first, keeping the UI fast on SQLite even at scale
+- **Automated scraping** from Bay Area dealerships via Playwright (DDC sites) and Algolia Search API
+- **Advanced filtering** by make, model, dealer, color, status, price range, and full-text search
 - **Vehicle comparison** — select up to 3 vehicles for side-by-side detail comparison
 - **Change tracking** — records when vehicles first appear, are last seen, and are removed from inventory
 - **Scheduled scraping** via cron with configurable interval
 
+## Quality Score
+
+Every vehicle is scored 0–100 after each scrape:
+
+| Factor | Points | Logic |
+|--------|--------|-------|
+| Price vs. market avg | 0–35 | Below-market vehicles score higher |
+| Days on lot | 0–20 | Longer = more negotiating leverage |
+| Condition | 0–15 | New > CPO > Used |
+| Mileage | 0–10 | Lower is better (used/CPO) |
+| In-stock status | 0–10 | Available now beats in-transit |
+| Packages/features | 0–10 | More features = better value |
+
+## Roadmap
+
+- [x] **Phase 1** — Generalized data model & quality scoring
+- [ ] **Phase 2** — Aggregator scraping (Cars.com, CarGurus) for broad coverage across 400+ dealers
+- [ ] **Phase 3** — Dealer discovery & database-driven dealer configuration
+- [ ] **Phase 4** — Job queue (BullMQ) for parallel, resilient scraping
+- [ ] **Phase 5** — Map view, saved searches, price history, alerts
+- [ ] **Phase 6** — Data quality monitoring & anomaly detection
+
+## Current Dealers (5)
+
+| Dealer | City | Scrape Method |
+|--------|------|---------------|
+| Stevens Creek BMW | San Jose | Playwright (DDC) |
+| BMW of Fremont | Fremont | Playwright (DDC) |
+| BMW of San Rafael | San Rafael | Playwright (DDC) |
+| Peter Pan BMW | San Mateo | Algolia API |
+| BMW of San Francisco | San Francisco | Algolia API |
+
 ## Tech Stack
 
 - **Next.js 14** (App Router) + **React 18** + **TypeScript**
-- **Tailwind CSS** with custom BMW-branded dark theme
+- **Tailwind CSS** with dark theme
 - **Playwright** for browser-automated dealership scraping
 - **Algolia Search API** for Algolia-powered dealer sites
-- **Better SQLite3** for fast local persistence
+- **Better SQLite3** for fast local persistence (WAL mode)
 - **Node Cron** for scheduled scrape jobs
 
 ## Getting Started
@@ -61,11 +97,10 @@ Trigger an initial scrape to populate inventory:
 npx tsx scripts/seed.ts
 ```
 
-Or via the API:
+Or generate sample data for testing:
 
 ```bash
-curl -X POST http://localhost:3000/api/scrape \
-  -H "x-api-key: $SCRAPE_API_KEY"
+npx tsx scripts/seed-sample.ts
 ```
 
 When running with `next start`, a background cron job automatically scrapes at the configured interval.
@@ -74,8 +109,9 @@ When running with `next start`, a background cron job automatically scrapes at t
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/api/inventory` | GET | Filtered vehicle list |
-| `/api/stats` | GET | Aggregate inventory statistics |
+| `/api/inventory` | GET | Filtered vehicle list (top 100 by quality score) |
+| `/api/inventory/[vin]` | GET | Single vehicle details |
+| `/api/stats` | GET | Aggregate stats, makes, models, color distribution |
 | `/api/dealers` | GET | Dealer list with vehicle counts |
 | `/api/scrape` | POST | Trigger a scrape (requires API key) |
 
@@ -84,7 +120,7 @@ When running with `next start`, a background cron job automatically scrapes at t
 ```
 app/            Next.js pages, layout, and API routes
 components/     React UI components (FilterBar, InventoryTable, ComparePanel, etc.)
-lib/            Database, scraper, types, and cron logic
+lib/            Database, scraper, scoring, types, and cron logic
 scripts/        Seed and test scripts
 data/           SQLite database (gitignored)
 ```
