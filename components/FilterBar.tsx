@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback } from "react";
 import type { DealerInfo } from "@/lib/types";
 import { Search, X } from "lucide-react";
 
 interface FilterBarProps {
   filters: {
+    make: string;
     model: string;
     dealer: string;
     color: string;
@@ -19,6 +19,8 @@ interface FilterBarProps {
   onClearFilters: () => void;
   dealers: DealerInfo[];
   colors: string[];
+  makes: string[];
+  models: string[];
   activeFilterCount: number;
 }
 
@@ -28,6 +30,8 @@ export function FilterBar({
   onClearFilters,
   dealers,
   colors,
+  makes,
+  models,
   activeFilterCount,
 }: FilterBarProps) {
   const selectClass =
@@ -41,12 +45,26 @@ export function FilterBar({
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-bmw-muted" />
           <input
             type="text"
-            placeholder="Search VIN, color, dealer, trim..."
+            placeholder="Search VIN, make, model, color, dealer..."
             value={filters.search}
             onChange={(e) => onFilterChange("search", e.target.value)}
             className="w-full rounded-md border border-bmw-border bg-bmw-card py-2 pl-9 pr-3 text-sm text-white placeholder-bmw-muted outline-none focus:border-bmw-blue focus:ring-1 focus:ring-bmw-blue"
           />
         </div>
+
+        {/* Make */}
+        <select
+          value={filters.make}
+          onChange={(e) => onFilterChange("make", e.target.value)}
+          className={selectClass}
+        >
+          <option value="all">All Makes</option>
+          {makes.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
 
         {/* Model */}
         <select
@@ -55,8 +73,11 @@ export function FilterBar({
           className={selectClass}
         >
           <option value="all">All Models</option>
-          <option value="330i">330i</option>
-          <option value="M340i">M340i</option>
+          {models.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
         </select>
 
         {/* Dealer */}
@@ -104,6 +125,7 @@ export function FilterBar({
           onChange={(e) => onFilterChange("sort", e.target.value)}
           className={selectClass}
         >
+          <option value="best_value">Best Value</option>
           <option value="newest">Newest First</option>
           <option value="price_asc">Price: Low to High</option>
           <option value="price_desc">Price: High to Low</option>

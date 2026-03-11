@@ -1,8 +1,15 @@
 export interface Vehicle {
   vin: string;
   year: number;
-  model: string; // '330i' or 'M340i'
-  trim: string; // e.g., '330i xDrive', 'M340i xDrive'
+  make: string;
+  model: string;
+  trim: string;
+  body_style: string;
+  drivetrain: string;
+  engine: string;
+  fuel_type: string;
+  mileage: number;
+  condition: string; // 'New', 'Used', 'CPO'
   exterior_color: string;
   interior_color: string;
   msrp: number;
@@ -12,6 +19,7 @@ export interface Vehicle {
   packages: string; // JSON array of package names
   stock_number: string;
   detail_url: string;
+  quality_score: number;
   first_seen: string;
   last_seen: string;
   last_scraped: string;
@@ -29,24 +37,29 @@ export interface ScrapeLog {
 }
 
 export interface InventoryFilters {
+  make?: string;
   model?: string;
   dealer?: string;
   color?: string;
+  condition?: string;
   maxPrice?: number;
   minPrice?: number;
   status?: string;
   sort?: string;
   search?: string;
+  limit?: number;
 }
 
 export interface InventoryStats {
   total: number;
-  count_330i: number;
-  count_m340i: number;
+  count_by_make: Record<string, number>;
+  total_dealers: number;
   avg_msrp: number;
   min_msrp: number;
   max_msrp: number;
   color_distribution: Record<string, number>;
+  makes: string[];
+  models: string[];
 }
 
 export interface DealerInfo {
@@ -58,8 +71,15 @@ export interface DealerInfo {
 export interface ScrapedVehicle {
   vin: string;
   year: number;
+  make: string;
   model: string;
   trim: string;
+  body_style: string;
+  drivetrain: string;
+  engine: string;
+  fuel_type: string;
+  mileage: number;
+  condition: string;
   exterior_color: string;
   interior_color: string;
   msrp: number;

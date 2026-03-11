@@ -52,13 +52,23 @@ export function StatsBar({
     );
   }
 
+  // Top 3 makes for display
+  const topMakes = Object.entries(stats.count_by_make)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3);
+  const topMakesStr = topMakes.map(([make, count]) => `${make} (${count})`).join(", ");
+
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
       <StatCard label="Total Vehicles" value={stats.total} />
-      <StatCard label="330i" value={stats.count_330i} />
-      <StatCard label="M340i" value={stats.count_m340i} />
+      <StatCard label="Dealers" value={stats.total_dealers} />
       <StatCard
-        label="Avg MSRP"
+        label="Top Makes"
+        value={topMakes[0]?.[0] || "-"}
+        subtext={topMakesStr}
+      />
+      <StatCard
+        label="Avg Price"
         value={formatCurrency(stats.avg_msrp)}
       />
       <StatCard

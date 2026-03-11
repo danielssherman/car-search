@@ -57,29 +57,30 @@ function DashboardContent() {
   const [selectedVins, setSelectedVins] = useState<Set<string>>(new Set());
   const [showCompare, setShowCompare] = useState(false);
 
-  // Initialize filters from URL
   const [filters, setFilters] = useState({
+    make: searchParams.get("make") || "all",
     model: searchParams.get("model") || "all",
     dealer: searchParams.get("dealer") || "",
     color: searchParams.get("color") || "",
     status: searchParams.get("status") || "all",
     minPrice: searchParams.get("minPrice") || "",
     maxPrice: searchParams.get("maxPrice") || "",
-    sort: searchParams.get("sort") || "newest",
+    sort: searchParams.get("sort") || "best_value",
     search: searchParams.get("search") || "",
   });
 
-  // Sync filters to URL
   const updateUrl = useCallback(
     (newFilters: typeof filters) => {
       const params = new URLSearchParams();
+      if (newFilters.make !== "all") params.set("make", newFilters.make);
       if (newFilters.model !== "all") params.set("model", newFilters.model);
       if (newFilters.dealer) params.set("dealer", newFilters.dealer);
       if (newFilters.color) params.set("color", newFilters.color);
       if (newFilters.status !== "all") params.set("status", newFilters.status);
       if (newFilters.minPrice) params.set("minPrice", newFilters.minPrice);
       if (newFilters.maxPrice) params.set("maxPrice", newFilters.maxPrice);
-      if (newFilters.sort !== "newest") params.set("sort", newFilters.sort);
+      if (newFilters.sort !== "best_value")
+        params.set("sort", newFilters.sort);
       if (newFilters.search) params.set("search", newFilters.search);
 
       const qs = params.toString();
@@ -91,6 +92,10 @@ function DashboardContent() {
   const handleFilterChange = useCallback(
     (key: string, value: string) => {
       const newFilters = { ...filters, [key]: value };
+      // Reset model when make changes
+      if (key === "make") {
+        newFilters.model = "all";
+      }
       setFilters(newFilters);
       updateUrl(newFilters);
     },
@@ -99,13 +104,14 @@ function DashboardContent() {
 
   const handleClearFilters = useCallback(() => {
     const cleared = {
+      make: "all",
       model: "all",
       dealer: "",
       color: "",
       status: "all",
       minPrice: "",
       maxPrice: "",
-      sort: "newest",
+      sort: "best_value",
       search: "",
     };
     setFilters(cleared);
@@ -114,6 +120,7 @@ function DashboardContent() {
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
+    if (filters.make !== "all") count++;
     if (filters.model !== "all") count++;
     if (filters.dealer) count++;
     if (filters.color) count++;
@@ -124,18 +131,18 @@ function DashboardContent() {
     return count;
   }, [filters]);
 
-  // Fetch data
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      if (filters.make !== "all") params.set("make", filters.make);
       if (filters.model !== "all") params.set("model", filters.model);
       if (filters.dealer) params.set("dealer", filters.dealer);
       if (filters.color) params.set("color", filters.color);
       if (filters.status !== "all") params.set("status", filters.status);
       if (filters.minPrice) params.set("minPrice", filters.minPrice);
       if (filters.maxPrice) params.set("maxPrice", filters.maxPrice);
-      if (filters.sort !== "newest") params.set("sort", filters.sort);
+      if (filters.sort !== "best_value") params.set("sort", filters.sort);
       if (filters.search) params.set("search", filters.search);
 
       const [inventoryRes, statsRes, dealersRes] = await Promise.all([
@@ -162,7 +169,6 @@ function DashboardContent() {
     fetchData();
   }, [fetchData]);
 
-  // Scrape handler
   const handleScrape = async () => {
     setScraping(true);
     try {
@@ -174,14 +180,14 @@ function DashboardContent() {
         fetchData();
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Scrape request failed";
+      const message =
+        err instanceof Error ? err.message : "Scrape request failed";
       setToast(`Scrape failed: ${message}`);
     } finally {
       setScraping(false);
     }
   };
 
-  // Compare
   const handleToggleSelect = useCallback((vin: string) => {
     setSelectedVins((prev) => {
       const next = new Set(prev);
@@ -215,10 +221,11 @@ function DashboardContent() {
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-tight md:text-2xl">
-              Bay Area BMW Tracker
+              Bay Area Car Tracker
             </h1>
             <p className="mt-0.5 text-xs text-bmw-muted">
-              Last updated: {formatTime(stats?.last_scraped ?? null)}
+              Top 100 by value score &middot; Last updated:{" "}
+              {formatTime(stats?.last_scraped ?? null)}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -257,6 +264,8 @@ function DashboardContent() {
         onClearFilters={handleClearFilters}
         dealers={dealers}
         colors={colors}
+        makes={stats?.makes || []}
+        models={stats?.models || []}
         activeFilterCount={activeFilterCount}
       />
 

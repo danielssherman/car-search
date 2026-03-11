@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Bay Area BMW Tracker",
-  description: "Track BMW 330i and M340i inventory across Bay Area dealerships",
+  title: "Bay Area Car Tracker",
+  description: "Track new car inventory across Bay Area dealerships",
 };
 
 export default function RootLayout({

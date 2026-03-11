@@ -32,34 +32,22 @@ function PriceCell({
   );
 }
 
-function PackageCell({
-  packages,
-  allPackageSets,
+function ScoreCell({
+  score,
+  allScores,
 }: {
-  packages: string[];
-  allPackageSets: string[][];
+  score: number;
+  allScores: number[];
 }) {
-  const maxCount = Math.max(...allPackageSets.map((p) => p.length));
-  const hasMore = packages.length === maxCount && maxCount > 0;
+  const max = Math.max(...allScores);
+  const isBest = score === max && new Set(allScores).size > 1;
 
   return (
-    <div className="flex flex-wrap gap-1">
-      {packages.map((pkg) => (
-        <span
-          key={pkg}
-          className={`rounded px-1.5 py-0.5 text-[10px] ${
-            hasMore
-              ? "bg-emerald-500/10 text-emerald-400"
-              : "bg-bmw-border/50 text-bmw-muted"
-          }`}
-        >
-          {pkg}
-        </span>
-      ))}
-      {packages.length === 0 && (
-        <span className="text-xs text-bmw-muted/50">None</span>
-      )}
-    </div>
+    <span
+      className={`font-semibold tabular-nums ${isBest ? "text-emerald-400" : ""}`}
+    >
+      {score}
+    </span>
   );
 }
 
@@ -75,18 +63,17 @@ export function ComparePanel({
   if (vehicles.length === 0) return null;
 
   const allPrices = vehicles.map((v) => v.msrp);
-  const allPackageSets = vehicles.map((v) => {
-    try {
-      return JSON.parse(v.packages || "[]") as string[];
-    } catch {
-      return [];
-    }
-  });
+  const allScores = vehicles.map((v) => v.quality_score);
 
   const rows: {
     label: string;
     render: (v: Vehicle, i: number) => React.ReactNode;
   }[] = [
+    {
+      label: "Score",
+      render: (v) => <ScoreCell score={v.quality_score} allScores={allScores} />,
+    },
+    { label: "Make", render: (v) => v.make },
     { label: "Year", render: (v) => v.year },
     { label: "Trim", render: (v) => v.trim },
     {
@@ -101,15 +88,6 @@ export function ComparePanel({
     },
     { label: "Dealer", render: (v) => v.dealer_name },
     { label: "City", render: (v) => v.dealer_city },
-    {
-      label: "Packages",
-      render: (v, i) => (
-        <PackageCell
-          packages={allPackageSets[i]}
-          allPackageSets={allPackageSets}
-        />
-      ),
-    },
     {
       label: "Days on Lot",
       render: (v) => {
@@ -144,10 +122,13 @@ export function ComparePanel({
               <tr>
                 <th className="pr-4 py-1.5 text-left text-xs font-medium text-bmw-muted w-28" />
                 {vehicles.map((v) => (
-                  <th key={v.vin} className="px-4 py-1.5 text-left min-w-[200px]">
+                  <th
+                    key={v.vin}
+                    className="px-4 py-1.5 text-left min-w-[200px]"
+                  >
                     <div className="flex items-center justify-between">
                       <span className="font-semibold">
-                        {v.year} {v.trim}
+                        {v.year} {v.make} {v.trim}
                       </span>
                       <button
                         onClick={() => onRemove(v.vin)}

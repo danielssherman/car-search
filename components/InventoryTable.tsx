@@ -8,6 +8,7 @@ import { VehicleCard } from "./VehicleCard";
 import { ExternalLink, ArrowUpDown } from "lucide-react";
 
 type SortKey =
+  | "make"
   | "trim"
   | "year"
   | "exterior_color"
@@ -15,7 +16,23 @@ type SortKey =
   | "msrp"
   | "dealer_name"
   | "dealer_city"
-  | "status";
+  | "status"
+  | "quality_score";
+
+function ScoreBadge({ score }: { score: number }) {
+  let color = "text-bmw-muted bg-bmw-border/50";
+  if (score >= 75) color = "text-emerald-400 bg-emerald-500/10";
+  else if (score >= 55) color = "text-bmw-blue bg-bmw-blue/10";
+  else if (score < 40) color = "text-red-400 bg-red-500/10";
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${color}`}
+    >
+      {score}
+    </span>
+  );
+}
 
 export function InventoryTable({
   vehicles,
@@ -125,17 +142,15 @@ export function InventoryTable({
               <th className="px-4 py-3 w-10">
                 <span className="sr-only">Select</span>
               </th>
+              <SortHeader label="Score" column="quality_score" className="w-16" />
+              <SortHeader label="Make" column="make" />
               <SortHeader label="Model / Trim" column="trim" />
               <SortHeader label="Year" column="year" className="w-16" />
               <SortHeader label="Ext Color" column="exterior_color" />
-              <SortHeader label="Int Color" column="interior_color" />
               <SortHeader label="MSRP" column="msrp" />
               <SortHeader label="Dealer" column="dealer_name" />
               <SortHeader label="City" column="dealer_city" />
               <SortHeader label="Status" column="status" />
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-bmw-muted">
-                Packages
-              </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-bmw-muted">
                 Link
               </th>
@@ -143,13 +158,6 @@ export function InventoryTable({
           </thead>
           <tbody className="divide-y divide-bmw-border">
             {sorted.map((vehicle, index) => {
-              const packages: string[] = (() => {
-                try {
-                  return JSON.parse(vehicle.packages || "[]");
-                } catch {
-                  return [];
-                }
-              })();
               const days = daysOnLot(vehicle.first_seen);
 
               return (
@@ -172,6 +180,10 @@ export function InventoryTable({
                     />
                   </td>
                   <td className="px-4 py-3">
+                    <ScoreBadge score={vehicle.quality_score} />
+                  </td>
+                  <td className="px-4 py-3 font-medium">{vehicle.make}</td>
+                  <td className="px-4 py-3">
                     <div className="font-medium">{vehicle.trim}</div>
                     <div className="text-xs text-bmw-muted">
                       {vehicle.vin}
@@ -184,7 +196,6 @@ export function InventoryTable({
                   </td>
                   <td className="px-4 py-3">{vehicle.year}</td>
                   <td className="px-4 py-3">{vehicle.exterior_color}</td>
-                  <td className="px-4 py-3">{vehicle.interior_color}</td>
                   <td className="px-4 py-3 font-medium tabular-nums">
                     {formatCurrency(vehicle.msrp)}
                   </td>
@@ -192,18 +203,6 @@ export function InventoryTable({
                   <td className="px-4 py-3 text-sm">{vehicle.dealer_city}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={vehicle.status} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {packages.map((pkg) => (
-                        <span
-                          key={pkg}
-                          className="rounded bg-bmw-border/50 px-1.5 py-0.5 text-[10px] text-bmw-muted"
-                        >
-                          {pkg}
-                        </span>
-                      ))}
-                    </div>
                   </td>
                   <td className="px-4 py-3">
                     {vehicle.detail_url && (

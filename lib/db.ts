@@ -9,10 +9,37 @@ import type {
   ScrapedVehicle,
   ScrapeLog,
 } from "./types";
+import { calculateQualityScore } from "./scoring";
 
 const DB_PATH = process.env.DATABASE_PATH || "./data/inventory.db";
 
 let db: Database.Database | null = null;
+
+function migrateSchema(database: Database.Database): void {
+  const columns = database
+    .prepare("PRAGMA table_info(vehicles)")
+    .all() as { name: string }[];
+  const existing = new Set(columns.map((c) => c.name));
+
+  const newColumns: { name: string; def: string }[] = [
+    { name: "make", def: "TEXT DEFAULT ''" },
+    { name: "body_style", def: "TEXT DEFAULT ''" },
+    { name: "drivetrain", def: "TEXT DEFAULT ''" },
+    { name: "engine", def: "TEXT DEFAULT ''" },
+    { name: "fuel_type", def: "TEXT DEFAULT ''" },
+    { name: "mileage", def: "INTEGER DEFAULT 0" },
+    { name: "condition", def: "TEXT DEFAULT 'New'" },
+    { name: "quality_score", def: "INTEGER DEFAULT 50" },
+  ];
+
+  for (const col of newColumns) {
+    if (!existing.has(col.name)) {
+      database.exec(
+        `ALTER TABLE vehicles ADD COLUMN ${col.name} ${col.def}`
+      );
+    }
+  }
+}
 
 export function getDb(): Database.Database {
   if (db) return db;
@@ -30,8 +57,15 @@ export function getDb(): Database.Database {
     CREATE TABLE IF NOT EXISTS vehicles (
       vin TEXT PRIMARY KEY,
       year INTEGER,
+      make TEXT DEFAULT '',
       model TEXT,
       trim TEXT,
+      body_style TEXT DEFAULT '',
+      drivetrain TEXT DEFAULT '',
+      engine TEXT DEFAULT '',
+      fuel_type TEXT DEFAULT '',
+      mileage INTEGER DEFAULT 0,
+      condition TEXT DEFAULT 'New',
       exterior_color TEXT,
       interior_color TEXT,
       msrp INTEGER,
@@ -41,6 +75,7 @@ export function getDb(): Database.Database {
       packages TEXT,
       stock_number TEXT,
       detail_url TEXT,
+      quality_score INTEGER DEFAULT 50,
       first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
       last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
       last_scraped DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -56,7 +91,13 @@ export function getDb(): Database.Database {
       status TEXT,
       error_message TEXT
     );
+
+    CREATE INDEX IF NOT EXISTS idx_vehicles_quality ON vehicles(quality_score DESC);
+    CREATE INDEX IF NOT EXISTS idx_vehicles_make ON vehicles(make);
+    CREATE INDEX IF NOT EXISTS idx_vehicles_removed ON vehicles(removed_at);
   `);
+
+  migrateSchema(db);
 
   return db;
 }
@@ -65,6 +106,11 @@ export function getVehicles(filters: InventoryFilters): Vehicle[] {
   const db = getDb();
   const conditions: string[] = ["removed_at IS NULL"];
   const params: unknown[] = [];
+
+  if (filters.make && filters.make !== "all") {
+    conditions.push("make = ?");
+    params.push(filters.make);
+  }
 
   if (filters.model && filters.model !== "all") {
     conditions.push("model = ?");
@@ -79,6 +125,11 @@ export function getVehicles(filters: InventoryFilters): Vehicle[] {
   if (filters.color) {
     conditions.push("exterior_color LIKE ?");
     params.push(`%${filters.color}%`);
+  }
+
+  if (filters.condition && filters.condition !== "all") {
+    conditions.push("condition = ?");
+    params.push(filters.condition);
   }
 
   if (filters.minPrice) {
@@ -98,21 +149,23 @@ export function getVehicles(filters: InventoryFilters): Vehicle[] {
 
   if (filters.search) {
     conditions.push(
-      "(vin LIKE ? OR exterior_color LIKE ? OR dealer_name LIKE ? OR trim LIKE ?)"
+      "(vin LIKE ? OR make LIKE ? OR model LIKE ? OR exterior_color LIKE ? OR dealer_name LIKE ? OR trim LIKE ?)"
     );
     const term = `%${filters.search}%`;
-    params.push(term, term, term, term);
+    params.push(term, term, term, term, term, term);
   }
 
-  let orderBy = "last_seen DESC";
+  let orderBy = "quality_score DESC";
   if (filters.sort === "price_asc") orderBy = "msrp ASC";
   else if (filters.sort === "price_desc") orderBy = "msrp DESC";
   else if (filters.sort === "newest") orderBy = "first_seen DESC";
+  else if (filters.sort === "best_value") orderBy = "quality_score DESC";
 
+  const limit = filters.limit || 100;
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const sql = `SELECT * FROM vehicles ${where} ORDER BY ${orderBy}`;
+  const sql = `SELECT * FROM vehicles ${where} ORDER BY ${orderBy} LIMIT ?`;
 
-  return db.prepare(sql).all(...params) as Vehicle[];
+  return db.prepare(sql).all(...params, limit) as Vehicle[];
 }
 
 export function getVehicleByVin(vin: string): Vehicle | undefined {
@@ -129,8 +182,6 @@ export function getStats(): InventoryStats {
     .prepare(
       `SELECT
       COUNT(*) as total,
-      SUM(CASE WHEN model = '330i' THEN 1 ELSE 0 END) as count_330i,
-      SUM(CASE WHEN model = 'M340i' THEN 1 ELSE 0 END) as count_m340i,
       COALESCE(ROUND(AVG(msrp)), 0) as avg_msrp,
       COALESCE(MIN(msrp), 0) as min_msrp,
       COALESCE(MAX(msrp), 0) as max_msrp
@@ -138,12 +189,41 @@ export function getStats(): InventoryStats {
     )
     .get() as {
     total: number;
-    count_330i: number;
-    count_m340i: number;
     avg_msrp: number;
     min_msrp: number;
     max_msrp: number;
   };
+
+  const dealerCount = db
+    .prepare(
+      "SELECT COUNT(DISTINCT dealer_name) as total FROM vehicles WHERE removed_at IS NULL"
+    )
+    .get() as { total: number };
+
+  const makeRows = db
+    .prepare(
+      `SELECT make, COUNT(*) as count
+    FROM vehicles WHERE removed_at IS NULL AND make != ''
+    GROUP BY make ORDER BY count DESC`
+    )
+    .all() as { make: string; count: number }[];
+
+  const count_by_make: Record<string, number> = {};
+  for (const row of makeRows) {
+    count_by_make[row.make] = row.count;
+  }
+
+  const makes = db
+    .prepare(
+      "SELECT DISTINCT make FROM vehicles WHERE removed_at IS NULL AND make != '' ORDER BY make"
+    )
+    .all() as { make: string }[];
+
+  const models = db
+    .prepare(
+      "SELECT DISTINCT model FROM vehicles WHERE removed_at IS NULL AND model != '' ORDER BY model"
+    )
+    .all() as { model: string }[];
 
   const colors = db
     .prepare(
@@ -158,7 +238,14 @@ export function getStats(): InventoryStats {
     color_distribution[c.exterior_color] = c.count;
   }
 
-  return { ...counts, color_distribution };
+  return {
+    ...counts,
+    total_dealers: dealerCount.total,
+    count_by_make,
+    makes: makes.map((m) => m.make),
+    models: models.map((m) => m.model),
+    color_distribution,
+  };
 }
 
 export function getDealers(): DealerInfo[] {
@@ -182,9 +269,18 @@ export function upsertVehicles(vehicles: ScrapedVehicle[]): {
   let newCount = 0;
 
   const insertStmt = db.prepare(`
-    INSERT INTO vehicles (vin, year, model, trim, exterior_color, interior_color, msrp, dealer_name, dealer_city, status, packages, stock_number, detail_url, first_seen, last_seen, last_scraped, removed_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    INSERT INTO vehicles (vin, year, make, model, trim, body_style, drivetrain, engine, fuel_type, mileage, condition, exterior_color, interior_color, msrp, dealer_name, dealer_city, status, packages, stock_number, detail_url, quality_score, first_seen, last_seen, last_scraped, removed_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 50, ?, ?, ?, NULL)
     ON CONFLICT(vin) DO UPDATE SET
+      make = excluded.make,
+      model = excluded.model,
+      trim = excluded.trim,
+      body_style = excluded.body_style,
+      drivetrain = excluded.drivetrain,
+      engine = excluded.engine,
+      fuel_type = excluded.fuel_type,
+      mileage = excluded.mileage,
+      condition = excluded.condition,
       msrp = excluded.msrp,
       status = excluded.status,
       dealer_name = excluded.dealer_name,
@@ -206,8 +302,15 @@ export function upsertVehicles(vehicles: ScrapedVehicle[]): {
       insertStmt.run(
         v.vin,
         v.year,
+        v.make,
         v.model,
         v.trim,
+        v.body_style,
+        v.drivetrain,
+        v.engine,
+        v.fuel_type,
+        v.mileage,
+        v.condition,
         v.exterior_color,
         v.interior_color,
         v.msrp,
@@ -226,6 +329,62 @@ export function upsertVehicles(vehicles: ScrapedVehicle[]): {
 
   transaction();
   return { found: vehicles.length, newCount };
+}
+
+export function updateQualityScores(): void {
+  const db = getDb();
+
+  // Market averages per make/model/year
+  const avgPrices = db
+    .prepare(
+      `SELECT make, model, year, AVG(msrp) as avg_price
+    FROM vehicles WHERE removed_at IS NULL AND msrp > 0
+    GROUP BY make, model, year`
+    )
+    .all() as {
+    make: string;
+    model: string;
+    year: number;
+    avg_price: number;
+  }[];
+
+  const priceMap = new Map<string, number>();
+  for (const row of avgPrices) {
+    priceMap.set(`${row.make}|${row.model}|${row.year}`, row.avg_price);
+  }
+
+  const vehicles = db
+    .prepare(
+      "SELECT vin, make, model, year, msrp, first_seen, mileage, condition, status, packages FROM vehicles WHERE removed_at IS NULL"
+    )
+    .all() as {
+    vin: string;
+    make: string;
+    model: string;
+    year: number;
+    msrp: number;
+    first_seen: string;
+    mileage: number;
+    condition: string;
+    status: string;
+    packages: string;
+  }[];
+
+  const updateStmt = db.prepare(
+    "UPDATE vehicles SET quality_score = ? WHERE vin = ?"
+  );
+
+  const transaction = db.transaction(() => {
+    for (const v of vehicles) {
+      const marketAvg =
+        priceMap.get(`${v.make}|${v.model}|${v.year}`) || 0;
+      const score = calculateQualityScore(v, marketAvg);
+      updateStmt.run(score, v.vin);
+    }
+  });
+
+  transaction();
+  console.log(`Quality scores updated for ${vehicles.length} vehicles`);
 }
 
 export function markMissingAsRemoved(currentVins: Set<string>): void {

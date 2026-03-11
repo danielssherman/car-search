@@ -5,6 +5,21 @@ import { formatCurrency, daysOnLot } from "@/lib/utils";
 import { StatusBadge } from "./StatusBadge";
 import { ExternalLink } from "lucide-react";
 
+function ScoreBadge({ score }: { score: number }) {
+  let color = "text-bmw-muted bg-bmw-border/50";
+  if (score >= 75) color = "text-emerald-400 bg-emerald-500/10";
+  else if (score >= 55) color = "text-bmw-blue bg-bmw-blue/10";
+  else if (score < 40) color = "text-red-400 bg-red-500/10";
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${color}`}
+    >
+      {score}
+    </span>
+  );
+}
+
 export function VehicleCard({
   vehicle,
   selected,
@@ -14,14 +29,6 @@ export function VehicleCard({
   selected: boolean;
   onSelect: (vin: string) => void;
 }) {
-  const packages: string[] = (() => {
-    try {
-      return JSON.parse(vehicle.packages || "[]");
-    } catch {
-      return [];
-    }
-  })();
-
   const days = daysOnLot(vehicle.first_seen);
 
   return (
@@ -42,12 +49,15 @@ export function VehicleCard({
           />
           <div>
             <h3 className="font-semibold">
-              {vehicle.year} {vehicle.trim}
+              {vehicle.year} {vehicle.make} {vehicle.trim}
             </h3>
             <p className="text-sm text-bmw-muted">{vehicle.vin}</p>
           </div>
         </div>
-        <StatusBadge status={vehicle.status} />
+        <div className="flex items-center gap-2">
+          <ScoreBadge score={vehicle.quality_score} />
+          <StatusBadge status={vehicle.status} />
+        </div>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -67,17 +77,6 @@ export function VehicleCard({
           <span className="text-bmw-muted">City: </span>
           {vehicle.dealer_city}
         </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {packages.map((pkg) => (
-          <span
-            key={pkg}
-            className="rounded-full bg-bmw-border/50 px-2 py-0.5 text-xs text-bmw-muted"
-          >
-            {pkg}
-          </span>
-        ))}
       </div>
 
       <div className="mt-3 flex items-center justify-between">

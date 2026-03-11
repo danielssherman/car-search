@@ -6,9 +6,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
   const filters: InventoryFilters = {
+    make: searchParams.get("make") || undefined,
     model: searchParams.get("model") || undefined,
     dealer: searchParams.get("dealer") || undefined,
     color: searchParams.get("color") || undefined,
+    condition: searchParams.get("condition") || undefined,
     maxPrice: searchParams.get("maxPrice")
       ? parseInt(searchParams.get("maxPrice")!)
       : undefined,

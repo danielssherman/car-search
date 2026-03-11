@@ -1,6 +1,11 @@
 import cron from "node-cron";
 import { scrapeAll } from "./scraper";
-import { upsertVehicles, markMissingAsRemoved, logScrape } from "./db";
+import {
+  upsertVehicles,
+  markMissingAsRemoved,
+  updateQualityScores,
+  logScrape,
+} from "./db";
 
 const INTERVAL_HOURS = parseInt(
   process.env.SCRAPE_INTERVAL_HOURS || "4",
@@ -27,6 +32,9 @@ export async function runScrape(): Promise<{
     // Mark vehicles not found in this scrape as removed
     const currentVins = new Set(vehicles.map((v) => v.vin));
     markMissingAsRemoved(currentVins);
+
+    // Recalculate quality scores with fresh market data
+    updateQualityScores();
 
     logScrape({
       started_at: startedAt,
