@@ -34,16 +34,18 @@ This isn't another listing site. It's a **buyer's intelligence platform**.
 
 - **Cross-dealer price arbitrage** — the same VIN often appears at multiple dealers at different prices. We surface that so you can save thousands without negotiating.
 - **Dealer intelligence** — we track how each dealer prices over time, how often they drop prices, and how long cars sit. This tells you which dealers are most likely to negotiate and when to make your move.
+- **Conversational intelligence** — a custom MCP server makes the entire inventory database queryable via natural language in any Claude session. Agents handle scraper orchestration, deal analysis, dealer discovery, and proactive alerts.
 
 ## Roadmap
 
 - [x] **Phase 1** — Generalized data model & quality scoring
-- [ ] **Phase 2** — Multi-source data pipeline (Cars.com, CarGurus scrapers + price history tracking)
-- [ ] **Phase 3** — Dealer intelligence engine (dealer scores, markup patterns, negotiation room estimates)
-- [ ] **Phase 4** — Dealer discovery & database-driven config for 400+ Bay Area dealers
+- [ ] **Phase 2** — Multi-source data pipeline (Cars.com, CarGurus scrapers, price history, independent scraper worker pattern)
+- [ ] **Phase 3** — Dealer intelligence engine (dealer scores, markup patterns, negotiation room estimates, deal analysis agent)
+- [ ] **Phase 4** — Dealer discovery & database-driven config for 400+ Bay Area dealers (platform detection agent)
 - [ ] **Phase 5** — Scale & reliability (BullMQ job queue, PostgreSQL, monitoring)
-- [ ] **Phase 6** — Product UI (cross-dealer comparison, dealer profiles, price charts, alerts, map view)
+- [ ] **Phase 6** — Product UI (cross-dealer comparison, dealer profiles, price charts, smart alerts via Gmail MCP, map view)
 - [ ] **Phase 7** — Public launch (SEO, beta, monetization)
+- **Cross-cutting** — Custom MCP server wrapping the database layer, growing with each phase
 
 ## Current Dealers (5)
 
@@ -63,6 +65,8 @@ This isn't another listing site. It's a **buyer's intelligence platform**.
 - **Algolia Search API** for Algolia-powered dealer sites
 - **Better SQLite3** for fast local persistence (WAL mode)
 - **Node Cron** for scheduled scrape jobs
+- **MCP (Model Context Protocol)** — custom server for conversational database access + Gmail MCP for alerts
+- **Claude agents** — deal analysis, scraper orchestration, dealer platform detection
 
 ## Getting Started
 
@@ -131,4 +135,5 @@ components/     React UI components (FilterBar, InventoryTable, ComparePanel, et
 lib/            Database, scraper, scoring, types, and cron logic
 scripts/        Seed and test scripts
 data/           SQLite database (gitignored)
+mcp-server/     Custom MCP server for conversational database access (planned)
 ```
