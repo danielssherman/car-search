@@ -1,15 +1,16 @@
 import type { ScraperModule, ScraperConfig, ScraperResult } from "./types";
 import ddcScraper from "./ddc";
 import algoliaScraper from "./algolia";
-import cargurusScraper from "./cargurus";
+import carscomScraper from "./carscom";
 
 export type { ScraperModule, ScraperConfig, ScraperResult } from "./types";
 
 // Registry of all available scraper modules
+// CarGurus (cargurus.ts) disabled — DataDome CAPTCHA blocks headless browsers in CI
 export const scraperRegistry: ScraperModule[] = [
   ddcScraper,
   algoliaScraper,
-  cargurusScraper,
+  carscomScraper,
 ];
 
 const DEFAULT_TIMEOUT = 600_000; // 10 minutes per scraper (DDC paginates 1200+ vehicles)

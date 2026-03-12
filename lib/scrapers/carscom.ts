@@ -3,7 +3,7 @@ import type { ScrapedVehicle } from "../types";
 import type { ScraperModule, ScraperConfig } from "./types";
 
 const USER_AGENT =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 // Bay Area zip codes with 50-mile radius covers the whole region
 const SEARCH_ZIPS = ["94102"];
@@ -188,19 +188,33 @@ const carscomScraper: ScraperModule = {
           try {
             await page.goto(url, {
               waitUntil: "domcontentloaded",
-              timeout: 30000,
+              timeout: 90000,
             });
+
+            // Handle Cloudflare challenge — wait for it to auto-resolve
+            const pageTitle = await page.title();
+            if (pageTitle.includes("Just a moment") || pageTitle.includes("Checking")) {
+              console.log("[Cars.com] Cloudflare challenge detected, waiting...");
+              await page.waitForFunction(
+                () => !document.title.includes("Just a moment") && !document.title.includes("Checking"),
+                { timeout: 30000 }
+              ).catch(() => null);
+              await page.waitForTimeout(3000);
+            }
 
             // Wait for vehicle cards to load
             await page
-              .waitForSelector("div.vehicle-card", { timeout: 15000 })
+              .waitForSelector("div.vehicle-card", { timeout: 30000 })
               .catch(() => null);
 
             const cards = page.locator("div.vehicle-card");
             const count = await cards.count();
 
             if (count === 0) {
-              console.log(`[Cars.com] No results on page ${currentPage}`);
+              // Debug: log what we actually see
+              const title = await page.title();
+              const bodyLen = await page.evaluate(() => document.body?.innerHTML?.length || 0);
+              console.log(`[Cars.com] No results on page ${currentPage} (title: "${title}", bodyLen: ${bodyLen})`);
               hasMore = false;
               break;
             }
