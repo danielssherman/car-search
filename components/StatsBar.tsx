@@ -69,12 +69,12 @@ export function StatsBar({
       />
       <StatCard
         label="Avg Price"
-        value={formatCurrency(stats.avg_msrp)}
+        value={formatCurrency(stats.avg_price)}
       />
       <StatCard
         label="Price Range"
-        value={`${formatCurrency(stats.min_msrp)} - ${formatCurrency(
-          stats.max_msrp
+        value={`${formatCurrency(stats.min_price)} - ${formatCurrency(
+          stats.max_price
         )}`}
       />
     </div>

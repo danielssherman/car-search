@@ -1,6 +1,6 @@
 export function calculateQualityScore(
   vehicle: {
-    msrp: number;
+    price: number;
     first_seen: string;
     mileage: number;
     condition: string;
@@ -13,9 +13,9 @@ export function calculateQualityScore(
 
   // Price vs market average (0-35 points)
   // Below market = higher score, above = lower
-  if (marketAvg > 0 && vehicle.msrp > 0) {
-    const pctDiff = (marketAvg - vehicle.msrp) / marketAvg;
-    // 20% below market → 35pts, at market → 17.5pts, 20% above → 0pts
+  if (marketAvg > 0 && vehicle.price > 0) {
+    const pctDiff = (marketAvg - vehicle.price) / marketAvg;
+    // 20% below market -> 35pts, at market -> 17.5pts, 20% above -> 0pts
     score += Math.max(0, Math.min(35, 17.5 + pctDiff * 87.5));
   } else {
     score += 17;

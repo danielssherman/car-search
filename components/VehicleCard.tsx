@@ -50,6 +50,11 @@ export function VehicleCard({
           <div>
             <h3 className="font-semibold">
               {vehicle.year} {vehicle.make} {vehicle.trim}
+              {vehicle.listing_count > 1 && (
+                <span className="ml-1.5 inline-flex items-center rounded-full bg-bmw-blue/10 px-1.5 py-0.5 text-[10px] font-semibold text-bmw-blue">
+                  {vehicle.listing_count} listings
+                </span>
+              )}
             </h3>
             <p className="text-sm text-bmw-muted">{vehicle.vin}</p>
           </div>
@@ -82,7 +87,7 @@ export function VehicleCard({
       <div className="mt-3 flex items-center justify-between">
         <div>
           <span className="text-xl font-bold">
-            {formatCurrency(vehicle.msrp)}
+            {formatCurrency(vehicle.price)}
           </span>
           {days > 0 && (
             <span className="ml-2 text-xs text-bmw-muted">

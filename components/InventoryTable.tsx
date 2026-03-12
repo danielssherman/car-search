@@ -13,7 +13,7 @@ type SortKey =
   | "year"
   | "exterior_color"
   | "interior_color"
-  | "msrp"
+  | "price"
   | "dealer_name"
   | "dealer_city"
   | "status"
@@ -30,6 +30,15 @@ function ScoreBadge({ score }: { score: number }) {
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${color}`}
     >
       {score}
+    </span>
+  );
+}
+
+function ListingCountBadge({ count }: { count: number }) {
+  if (count <= 1) return null;
+  return (
+    <span className="ml-1.5 inline-flex items-center rounded-full bg-bmw-blue/10 px-1.5 py-0.5 text-[10px] font-semibold text-bmw-blue">
+      {count} listings
     </span>
   );
 }
@@ -147,7 +156,7 @@ export function InventoryTable({
               <SortHeader label="Model / Trim" column="trim" />
               <SortHeader label="Year" column="year" className="w-16" />
               <SortHeader label="Ext Color" column="exterior_color" />
-              <SortHeader label="MSRP" column="msrp" />
+              <SortHeader label="Price" column="price" />
               <SortHeader label="Dealer" column="dealer_name" />
               <SortHeader label="City" column="dealer_city" />
               <SortHeader label="Status" column="status" />
@@ -184,7 +193,10 @@ export function InventoryTable({
                   </td>
                   <td className="px-4 py-3 font-medium">{vehicle.make}</td>
                   <td className="px-4 py-3">
-                    <div className="font-medium">{vehicle.trim}</div>
+                    <div className="font-medium">
+                      {vehicle.trim}
+                      <ListingCountBadge count={vehicle.listing_count} />
+                    </div>
                     <div className="text-xs text-bmw-muted">
                       {vehicle.vin}
                       {days > 0 && (
@@ -197,7 +209,7 @@ export function InventoryTable({
                   <td className="px-4 py-3">{vehicle.year}</td>
                   <td className="px-4 py-3">{vehicle.exterior_color}</td>
                   <td className="px-4 py-3 font-medium tabular-nums">
-                    {formatCurrency(vehicle.msrp)}
+                    {formatCurrency(vehicle.price)}
                   </td>
                   <td className="px-4 py-3 text-sm">{vehicle.dealer_name}</td>
                   <td className="px-4 py-3 text-sm">{vehicle.dealer_city}</td>

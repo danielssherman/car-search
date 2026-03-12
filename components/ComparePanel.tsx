@@ -6,16 +6,16 @@ import { StatusBadge } from "./StatusBadge";
 import { X } from "lucide-react";
 
 function PriceCell({
-  msrp,
+  price,
   allPrices,
 }: {
-  msrp: number;
+  price: number;
   allPrices: number[];
 }) {
   const min = Math.min(...allPrices);
   const max = Math.max(...allPrices);
-  const isCheapest = msrp === min && min !== max;
-  const isMostExpensive = msrp === max && min !== max;
+  const isCheapest = price === min && min !== max;
+  const isMostExpensive = price === max && min !== max;
 
   return (
     <span
@@ -27,7 +27,7 @@ function PriceCell({
           : ""
       }`}
     >
-      {formatCurrency(msrp)}
+      {formatCurrency(price)}
     </span>
   );
 }
@@ -62,7 +62,7 @@ export function ComparePanel({
 }) {
   if (vehicles.length === 0) return null;
 
-  const allPrices = vehicles.map((v) => v.msrp);
+  const allPrices = vehicles.map((v) => v.price);
   const allScores = vehicles.map((v) => v.quality_score);
 
   const rows: {
@@ -77,8 +77,8 @@ export function ComparePanel({
     { label: "Year", render: (v) => v.year },
     { label: "Trim", render: (v) => v.trim },
     {
-      label: "MSRP",
-      render: (v) => <PriceCell msrp={v.msrp} allPrices={allPrices} />,
+      label: "Price",
+      render: (v) => <PriceCell price={v.price} allPrices={allPrices} />,
     },
     { label: "Exterior", render: (v) => v.exterior_color },
     { label: "Interior", render: (v) => v.interior_color },

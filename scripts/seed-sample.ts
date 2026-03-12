@@ -91,6 +91,7 @@ function main() {
       exterior_color: randomItem(COLORS),
       interior_color: randomItem(INTERIOR_COLORS),
       msrp: trimInfo.basePrice + pkgAdder,
+      source: "dealer_ddc",
       dealer_name: dealer.name,
       dealer_city: dealer.city,
       status: Math.random() > 0.35 ? "In Stock" : "In Transit",
@@ -109,6 +110,7 @@ function main() {
     vehicles_new: result.newCount,
     status: "success",
     error_message: null,
+    source: null,
   });
 
   console.log(

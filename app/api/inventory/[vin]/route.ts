@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getVehicleByVin } from "@/lib/db";
+import { getVehicleByVin, getListingsForVin } from "@/lib/db";
 
 export async function GET(
   _request: NextRequest,
@@ -13,7 +13,8 @@ export async function GET(
         { status: 404 }
       );
     }
-    return NextResponse.json(vehicle);
+    const listings = getListingsForVin(params.vin);
+    return NextResponse.json({ ...vehicle, listings });
   } catch (err) {
     console.error("Error fetching vehicle:", err);
     return NextResponse.json(

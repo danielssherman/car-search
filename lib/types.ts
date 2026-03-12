@@ -12,18 +12,49 @@ export interface Vehicle {
   condition: string; // 'New', 'Used', 'CPO'
   exterior_color: string;
   interior_color: string;
-  msrp: number;
-  dealer_name: string;
-  dealer_city: string;
-  status: string; // 'In Stock' or 'In Transit'
-  packages: string; // JSON array of package names
-  stock_number: string;
-  detail_url: string;
   quality_score: number;
   first_seen: string;
   last_seen: string;
-  last_scraped: string;
   removed_at: string | null;
+  // From best listing (JOIN)
+  price: number;
+  msrp: number;
+  source: string;
+  dealer_name: string;
+  dealer_city: string;
+  status: string; // 'In Stock' or 'In Transit'
+  detail_url: string;
+  stock_number: string;
+  packages: string; // JSON array of package names
+  listing_count: number;
+}
+
+export interface Listing {
+  id: number;
+  vin: string;
+  source: string;
+  dealer_name: string;
+  dealer_city: string;
+  price: number;
+  msrp: number;
+  status: string;
+  detail_url: string;
+  stock_number: string;
+  packages: string;
+  first_seen: string;
+  last_seen: string;
+  removed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PriceHistory {
+  id: number;
+  vin: string;
+  source: string;
+  dealer_name: string;
+  price: number;
+  recorded_at: string;
 }
 
 export interface ScrapeLog {
@@ -34,6 +65,7 @@ export interface ScrapeLog {
   vehicles_new: number;
   status: string;
   error_message: string | null;
+  source: string | null;
 }
 
 export interface InventoryFilters {
@@ -54,9 +86,9 @@ export interface InventoryStats {
   total: number;
   count_by_make: Record<string, number>;
   total_dealers: number;
-  avg_msrp: number;
-  min_msrp: number;
-  max_msrp: number;
+  avg_price: number;
+  min_price: number;
+  max_price: number;
   color_distribution: Record<string, number>;
   makes: string[];
   models: string[];
@@ -83,6 +115,7 @@ export interface ScrapedVehicle {
   exterior_color: string;
   interior_color: string;
   msrp: number;
+  source: string;
   dealer_name: string;
   dealer_city: string;
   status: string;
