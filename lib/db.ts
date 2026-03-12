@@ -104,6 +104,12 @@ export function getDb(): Database.Database {
       source TEXT
     );
 
+  `);
+
+  // Migrate schema before creating indexes that reference new columns
+  migrateSchema(db);
+
+  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_vehicles_quality ON vehicles(quality_score DESC);
     CREATE INDEX IF NOT EXISTS idx_vehicles_make ON vehicles(make);
     CREATE INDEX IF NOT EXISTS idx_vehicles_removed ON vehicles(removed_at);
@@ -176,8 +182,6 @@ export function getDb(): Database.Database {
       console.log("Migration complete.");
     }
   }
-
-  migrateSchema(db);
 
   return db;
 }

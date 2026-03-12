@@ -11,29 +11,30 @@ interface AlgoliaDealerConfig {
   indexName: string;
 }
 
-const ALGOLIA_APP_ID = process.env.ALGOLIA_APP_ID || "";
-const ALGOLIA_API_KEY = process.env.ALGOLIA_API_KEY || "";
-
-export const ALGOLIA_DEALERS: AlgoliaDealerConfig[] = [
-  {
-    name: "Peter Pan BMW",
-    city: "San Mateo",
-    baseUrl: "https://www.peterpanbmw.com",
-    defaultMake: "BMW",
-    appId: ALGOLIA_APP_ID,
-    apiKey: ALGOLIA_API_KEY,
-    indexName: "peterpanbmw-sbm0125_production_inventory",
-  },
-  {
-    name: "BMW of San Francisco",
-    city: "San Francisco",
-    baseUrl: "https://www.bmwsf.com",
-    defaultMake: "BMW",
-    appId: ALGOLIA_APP_ID,
-    apiKey: ALGOLIA_API_KEY,
-    indexName: "bmwofsanfrancisco_production_inventory",
-  },
-];
+function getAlgoliaDealers(): AlgoliaDealerConfig[] {
+  const appId = process.env.ALGOLIA_APP_ID || "";
+  const apiKey = process.env.ALGOLIA_API_KEY || "";
+  return [
+    {
+      name: "Peter Pan BMW",
+      city: "San Mateo",
+      baseUrl: "https://www.peterpanbmw.com",
+      defaultMake: "BMW",
+      appId,
+      apiKey,
+      indexName: "peterpanbmw-sbm0125_production_inventory",
+    },
+    {
+      name: "BMW of San Francisco",
+      city: "San Francisco",
+      baseUrl: "https://www.bmwsf.com",
+      defaultMake: "BMW",
+      appId,
+      apiKey,
+      indexName: "bmwofsanfrancisco_production_inventory",
+    },
+  ];
+}
 
 async function scrapeAlgoliaDealer(
   dealer: AlgoliaDealerConfig
@@ -143,7 +144,8 @@ const algoliaScraper: ScraperModule = {
   async scrape(_config: ScraperConfig): Promise<ScrapedVehicle[]> {
     const allVehicles: ScrapedVehicle[] = [];
 
-    for (const dealer of ALGOLIA_DEALERS) {
+    const dealers = getAlgoliaDealers();
+    for (const dealer of dealers) {
       console.log(`[Algolia] Scraping ${dealer.name}...`);
       try {
         const vehicles = await scrapeAlgoliaDealer(dealer);

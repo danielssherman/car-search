@@ -1,3 +1,4 @@
+import "./env";
 import cron from "node-cron";
 import { runAllScrapers, type ScraperResult } from "./scrapers";
 import {

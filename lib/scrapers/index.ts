@@ -12,7 +12,7 @@ export const scraperRegistry: ScraperModule[] = [
   carscomScraper,
 ];
 
-const DEFAULT_TIMEOUT = 120_000; // 2 minutes per scraper
+const DEFAULT_TIMEOUT = 600_000; // 10 minutes per scraper (DDC paginates 1200+ vehicles)
 const MAX_RETRIES = 3;
 
 function sleep(ms: number): Promise<void> {
