@@ -1,0 +1,110 @@
+name: Scrape Inventory
+
+on:
+  schedule:
+    # Every 6 hours: midnight, 6am, noon, 6pm UTC
+    # (4pm, midnight, 4am, 10am Pacific)
+    - cron: '0 0,6,12,18 * * *'
+  workflow_dispatch:
+    inputs:
+      skip_upload:
+        description: 'Skip uploading DB (for testing)'
+        required: false
+        default: 'false'
+        type: boolean
+
+# Prevent concurrent scrapes — queue, don't cancel
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      DATABASE_PATH: ./data/inventory.db
+      ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_APP_ID }}
+      ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+      SCRAPE_API_KEY: ${{ secrets.SCRAPE_API_KEY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Create data directory
+        run: mkdir -p data
+
+      - name: Download database from R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          aws configure set aws_access_key_id "$R2_ACCESS_KEY_ID"
+          aws configure set aws_secret_access_key "$R2_SECRET_ACCESS_KEY"
+          aws configure set default.region auto
+
+          R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+          if aws s3 cp "s3://${R2_BUCKET}/inventory.db" ./data/inventory.db \
+              --endpoint-url "$R2_ENDPOINT" 2>/dev/null; then
+            echo "Downloaded existing database"
+            ls -lh ./data/inventory.db
+          else
+            echo "No existing database found — starting fresh"
+          fi
+
+      - name: Run scraper
+        id: scrape
+        run: npm run scrape:ci 2>&1 | tee scrape-output.log
+
+      - name: Upload database to R2
+        if: always() && inputs.skip_upload != 'true'
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+          if [ -f ./data/inventory.db ]; then
+            aws s3 cp ./data/inventory.db "s3://${R2_BUCKET}/inventory.db" \
+              --endpoint-url "$R2_ENDPOINT"
+            echo "Database uploaded to R2"
+            ls -lh ./data/inventory.db
+
+            # Weekly backup on Mondays
+            DAY_OF_WEEK=$(date +%u)
+            if [ "$DAY_OF_WEEK" -eq 1 ]; then
+              BACKUP_NAME="inventory-$(date +%Y%m%d).db"
+              aws s3 cp ./data/inventory.db "s3://${R2_BUCKET}/backups/${BACKUP_NAME}" \
+                --endpoint-url "$R2_ENDPOINT"
+              echo "Weekly backup uploaded: ${BACKUP_NAME}"
+            fi
+          else
+            echo "::warning::No database file found to upload"
+          fi
+
+      - name: Upload scrape log as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrape-log-${{ github.run_number }}
+          path: scrape-output.log
+          retention-days: 30
