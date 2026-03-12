@@ -36,6 +36,7 @@ async function main() {
       vehicles_new: newCount,
       status: "success",
       error_message: null,
+      source: null,
     });
 
     console.log("\nSaved to DB:", found, "found,", newCount, "new");
@@ -58,6 +59,7 @@ async function main() {
       vehicles_new: 0,
       status: "error",
       error_message: (err as Error).message,
+      source: null,
     });
   }
 }

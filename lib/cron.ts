@@ -1,11 +1,12 @@
 import cron from "node-cron";
-import { scrapeAll } from "./scraper";
+import { runAllScrapers, type ScraperResult } from "./scrapers";
 import {
   upsertVehicles,
   markMissingAsRemoved,
   updateQualityScores,
   logScrape,
 } from "./db";
+import type { ScrapedVehicle } from "./types";
 
 const INTERVAL_HOURS = parseInt(
   process.env.SCRAPE_INTERVAL_HOURS || "4",
@@ -17,6 +18,7 @@ let isRunning = false;
 export async function runScrape(): Promise<{
   found: number;
   newCount: number;
+  results: ScraperResult[];
 }> {
   if (isRunning) {
     throw new Error("Scrape already in progress");
@@ -26,29 +28,57 @@ export async function runScrape(): Promise<{
   const startedAt = new Date().toISOString();
 
   try {
-    const vehicles = await scrapeAll();
-    const { found, newCount } = upsertVehicles(vehicles);
+    // Run all scrapers concurrently — each is an independent worker
+    const results = await runAllScrapers();
 
-    // Mark vehicles not found in this scrape as removed
-    const currentVins = new Set(vehicles.map((v) => v.vin));
-    markMissingAsRemoved(currentVins);
+    // Aggregate all vehicles from all sources
+    const allVehicles: ScrapedVehicle[] = [];
+    for (const result of results) {
+      allVehicles.push(...result.vehicles);
+    }
 
-    // Recalculate quality scores with fresh market data
+    // Upsert into DB
+    const { found, newCount } = upsertVehicles(allVehicles);
+
+    // Mark missing vehicles/listings as removed
+    markMissingAsRemoved(allVehicles);
+
+    // Recalculate quality scores
     updateQualityScores();
 
+    // Log per-source results
+    for (const result of results) {
+      logScrape({
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        vehicles_found: result.vehicles.length,
+        vehicles_new: 0,
+        status: result.error ? "error" : "success",
+        error_message: result.error || null,
+        source: result.source,
+      });
+    }
+
+    // Log aggregate entry
     logScrape({
       started_at: startedAt,
       completed_at: new Date().toISOString(),
       vehicles_found: found,
       vehicles_new: newCount,
-      status: "success",
-      error_message: null,
+      status: results.every((r) => !r.error) ? "success" : "partial",
+      error_message: results.some((r) => r.error)
+        ? `Failed sources: ${results
+            .filter((r) => r.error)
+            .map((r) => `${r.source}: ${r.error}`)
+            .join("; ")}`
+        : null,
+      source: null,
     });
 
     console.log(
       `Scrape complete: ${found} vehicles found, ${newCount} new`
     );
-    return { found, newCount };
+    return { found, newCount, results };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logScrape({
@@ -58,6 +88,7 @@ export async function runScrape(): Promise<{
       vehicles_new: 0,
       status: "error",
       error_message: message,
+      source: null,
     });
     throw err;
   } finally {
@@ -66,7 +97,6 @@ export async function runScrape(): Promise<{
 }
 
 export function startCronJob(): void {
-  // Run every N hours
   const cronExpression = `0 */${INTERVAL_HOURS} * * *`;
 
   cron.schedule(cronExpression, async () => {
