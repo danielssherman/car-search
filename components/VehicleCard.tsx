@@ -49,7 +49,7 @@ export function VehicleCard({
           />
           <div>
             <h3 className="font-semibold">
-              {vehicle.year} {vehicle.make} {vehicle.trim}
+              {vehicle.year} {vehicle.make} {vehicle.model !== vehicle.trim ? `${vehicle.model} ${vehicle.trim}` : vehicle.trim}
               {vehicle.listing_count > 1 && (
                 <span className="ml-1.5 inline-flex items-center rounded-full bg-bmw-blue/10 px-1.5 py-0.5 text-[10px] font-semibold text-bmw-blue">
                   {vehicle.listing_count} listings

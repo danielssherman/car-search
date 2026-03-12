@@ -75,7 +75,7 @@ export function ComparePanel({
     },
     { label: "Make", render: (v) => v.make },
     { label: "Year", render: (v) => v.year },
-    { label: "Trim", render: (v) => v.trim },
+    { label: "Model / Trim", render: (v) => v.model !== v.trim ? `${v.model} ${v.trim}` : v.trim },
     {
       label: "Price",
       render: (v) => <PriceCell price={v.price} allPrices={allPrices} />,
@@ -128,7 +128,7 @@ export function ComparePanel({
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-semibold">
-                        {v.year} {v.make} {v.trim}
+                        {v.year} {v.make} {v.model !== v.trim ? `${v.model} ${v.trim}` : v.trim}
                       </span>
                       <button
                         onClick={() => onRemove(v.vin)}

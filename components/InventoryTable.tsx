@@ -194,7 +194,7 @@ export function InventoryTable({
                   <td className="px-4 py-3 font-medium">{vehicle.make}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium">
-                      {vehicle.trim}
+                      {vehicle.model !== vehicle.trim ? `${vehicle.model} ${vehicle.trim}` : vehicle.trim}
                       <ListingCountBadge count={vehicle.listing_count} />
                     </div>
                     <div className="text-xs text-bmw-muted">
