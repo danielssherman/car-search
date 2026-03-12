@@ -1,7 +1,7 @@
 import type { ScraperModule, ScraperConfig, ScraperResult } from "./types";
 import ddcScraper from "./ddc";
 import algoliaScraper from "./algolia";
-import carscomScraper from "./carscom";
+import cargurusScraper from "./cargurus";
 
 export type { ScraperModule, ScraperConfig, ScraperResult } from "./types";
 
@@ -9,7 +9,7 @@ export type { ScraperModule, ScraperConfig, ScraperResult } from "./types";
 export const scraperRegistry: ScraperModule[] = [
   ddcScraper,
   algoliaScraper,
-  carscomScraper,
+  cargurusScraper,
 ];
 
 const DEFAULT_TIMEOUT = 600_000; // 10 minutes per scraper (DDC paginates 1200+ vehicles)
