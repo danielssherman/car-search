@@ -139,12 +139,19 @@ const cargurusScraper: ScraperModule = {
         });
       });
 
-      // Intercept AJAX responses containing listing data
+      // Intercept all responses to find listing data
       page.on("response", async (resp) => {
         const url = resp.url();
+        // Log cargurus API calls for debugging
+        if (url.includes("cargurus.com") && !url.includes(".js") && !url.includes(".css") && !url.includes(".png") && !url.includes(".jpg") && !url.includes(".svg") && !url.includes(".woff")) {
+          const contentType = resp.headers()["content-type"] || "";
+          if (contentType.includes("json") || url.includes("ajax") || url.includes("inventory") || url.includes("listing")) {
+            console.log(`[CarGurus] Response: ${resp.status()} ${url.substring(0, 120)} (${contentType.substring(0, 30)})`);
+          }
+        }
+
         if (
-          (url.includes("ajaxFetchSubsetInventoryListing") ||
-            url.includes("viewDetailsFilterViewInventoryListing")) &&
+          url.includes("cargurus.com") &&
           resp.status() === 200
         ) {
           try {
@@ -152,8 +159,22 @@ const cargurusScraper: ScraperModule = {
             if (!contentType.includes("json")) return;
 
             const data = await resp.json();
-            const listings = data?.listings || data?.results || [];
-            if (!Array.isArray(listings)) return;
+            // Try multiple possible shapes for listing data
+            const listings =
+              data?.listings ||
+              data?.results ||
+              data?.searchResults ||
+              data?.inventory ||
+              data?.data?.listings ||
+              data?.data?.results ||
+              [];
+            if (!Array.isArray(listings) || listings.length === 0) return;
+
+            console.log(`[CarGurus] Found ${listings.length} listings in JSON response`);
+            // Log first listing keys for debugging
+            if (listings[0]) {
+              console.log(`[CarGurus] Listing keys: ${Object.keys(listings[0]).slice(0, 15).join(", ")}`);
+            }
 
             for (const listing of listings) {
               const vehicle = parseCarGurusListing(listing);
@@ -162,7 +183,7 @@ const cargurusScraper: ScraperModule = {
               }
             }
           } catch {
-            // Response wasn't JSON or parsing failed — skip
+            // Not JSON or parsing failed
           }
         }
       });
@@ -179,49 +200,76 @@ const cargurusScraper: ScraperModule = {
       // Wait for results to render
       await page.waitForTimeout(8000);
       console.log(
-        `[CarGurus] Initial load: ${vehicleMap.size} vehicles captured`
+        `[CarGurus] Initial load from network: ${vehicleMap.size} vehicles captured`
       );
 
-      // Paginate: scroll or click "next page" to trigger more AJAX loads
-      let previousCount = 0;
-      let pageNum = 1;
-      const MAX_PAGES = 20;
+      // Try extracting listing data embedded in the page (SSR)
+      if (vehicleMap.size === 0) {
+        console.log("[CarGurus] No network JSON found, trying page extraction...");
 
-      while (pageNum < MAX_PAGES) {
-        previousCount = vehicleMap.size;
+        const pageData = await page.evaluate(() => {
+          // Check for __NEXT_DATA__ or similar embedded JSON
+          const nextData = document.querySelector("#__NEXT_DATA__");
+          if (nextData?.textContent) return { source: "__NEXT_DATA__", data: nextData.textContent.substring(0, 500) };
 
-        // Try clicking the next page button
-        const nextButton = page.locator(
-          'button[aria-label="Next page"], a.nextPageElement, [data-testid="next-page"]'
-        );
-        const hasNext = (await nextButton.count()) > 0;
-
-        if (!hasNext) {
-          // Try scrolling to bottom to trigger infinite scroll
-          await page.evaluate(() =>
-            window.scrollTo(0, document.body.scrollHeight)
-          );
-          await page.waitForTimeout(3000);
-
-          if (vehicleMap.size === previousCount) {
-            console.log(`[CarGurus] No more results after page ${pageNum}`);
-            break;
+          // Check for window.__CARGURUS_SEARCH_STATE__ or similar globals
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const w = window as any;
+          for (const key of Object.keys(w)) {
+            if (key.includes("CARGURUS") || key.includes("SEARCH") || key.includes("LISTING") || key.includes("__INITIAL")) {
+              try {
+                const val = JSON.stringify(w[key]);
+                if (val && val.length > 100) return { source: key, data: val.substring(0, 500) };
+              } catch { /* skip */ }
+            }
           }
-        } else {
-          try {
-            await nextButton.first().click();
-            pageNum++;
-            console.log(
-              `[CarGurus] Page ${pageNum}: ${vehicleMap.size} vehicles so far`
-            );
-            await page.waitForTimeout(4000);
-          } catch {
-            console.log(`[CarGurus] Next page click failed on page ${pageNum}`);
-            break;
+
+          // Check for script tags with JSON-LD or embedded data
+          const scripts = document.querySelectorAll("script[type='application/json'], script[type='application/ld+json']");
+          for (const s of scripts) {
+            if (s.textContent && s.textContent.length > 200) {
+              return { source: `script[${s.getAttribute("type")}]`, data: s.textContent.substring(0, 500) };
+            }
           }
+
+          // Log page title and URL for debugging
+          return {
+            source: "page_info",
+            data: JSON.stringify({
+              title: document.title,
+              url: window.location.href,
+              bodyLen: document.body?.innerHTML?.length || 0,
+              hasVehicleCards: document.querySelectorAll("[data-cg-ft='car-blade']").length,
+              hasListingCards: document.querySelectorAll(".listing-row, .cg-listingDetail, .result-card, article").length,
+            }),
+          };
+        });
+
+        console.log(`[CarGurus] Page extraction (${pageData.source}): ${pageData.data}`);
+
+        // Try extracting from Remix/React hydration data
+        const remixData = await page.evaluate(() => {
+          // Remix framework embeds route data in script tags
+          const scripts = Array.from(document.querySelectorAll("script"));
+          for (const s of scripts) {
+            const text = s.textContent || "";
+            if (text.includes("vehicleIdentifier") || text.includes("listingId") || text.includes("serviceProvider")) {
+              return text.substring(0, 2000);
+            }
+          }
+          // Check all script tags for anything with listing-like data
+          for (const s of scripts) {
+            const text = s.textContent || "";
+            if (text.includes('"vin"') || text.includes('"price"') || text.includes('"makeName"')) {
+              return text.substring(0, 2000);
+            }
+          }
+          return null;
+        });
+
+        if (remixData) {
+          console.log(`[CarGurus] Found embedded script data: ${remixData.substring(0, 300)}`);
         }
-
-        await randomDelay(1500, 3000);
       }
 
       await page.close();
