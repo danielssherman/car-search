@@ -54,7 +54,7 @@ function getTrackingAttr(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function parseDDCInventory(data: any, dealer: DDCDealerConfig): ScrapedVehicle[] {
+export function parseDDCInventory(data: any, dealer: DDCDealerConfig): ScrapedVehicle[] {
   const vehicles: ScrapedVehicle[] = [];
   const items = data?.inventory || [];
 

@@ -178,7 +178,7 @@ Short imperative subject line. Group related changes (e.g., "Add Cars.com scrape
 ## Known Issues & Debt
 
 - No automated test suite — scoring.ts, db.ts migrations, and scraper response parsers are all untested
-- MCP server built but not registered in ~/.claude.json
+- MCP server registered in `~/.claude.json` (project: `/Users/dsherman`) and `.mcp.json` (project root)
 - The 3-branch parallel instance experiment (Session 19) didn't work as designed — instances all committed to working directory instead of separate branches. Avoid this pattern; use sequential sessions instead.
 
 ---
@@ -200,7 +200,7 @@ _Revisit these as the project evolves. Not blocking current work._
 
 ### Product
 - **Test coverage** — scoring.ts, db.ts migrations, scraper response parsers all untested.
-- **Register MCP server** — built but not in ~/.claude.json.
+- ~~**Register MCP server**~~ — DONE. Registered in `~/.claude.json` and `.mcp.json`.
 - **Price history visualization** — Phase 3 dealer intelligence depends on accumulated price_history data. Automated scraping is now running (every 6h via GH Actions) so data is accumulating.
 - **Smart alerts** — Phase 6: price drop notifications, new inventory alerts.
 
@@ -208,9 +208,18 @@ _Revisit these as the project evolves. Not blocking current work._
 
 ## Current State
 
-_Last updated: 2026-03-12 (Session 25)_
+_Last updated: 2026-03-16 (Session 27)_
 
 - **Branch:** main
-- **Automated scraping:** GitHub Actions cron every 6h, SQLite DB persisted to Cloudflare R2. Working scrapers: DDC (3 dealers), Algolia (2 dealers). ~1,800 vehicles per run.
-- **DB:** ~1,800 vehicles across 5 dealers, actively updated every 6 hours
-- **Next priorities:** (1) Register MCP server, (2) Add basic test coverage, (3) Begin Phase 3 dealer intelligence once price history accumulates
+- **Automated scraping:** GitHub Actions cron every 6h, SQLite DB persisted to Cloudflare R2. Working scrapers: DDC (3 dealers), Algolia (2 dealers). ~1,800 vehicles per run. 44 scrapes completed since 2026-03-12.
+- **DB:** 1,863 vehicles, 2,005 listings across 5 dealers. 1,859 price history records. Active dealers: Stevens Creek (663), Peter Pan (322), Fremont (305), San Rafael (275), SF (215).
+- **MCP server:** Registered in `~/.claude.json` and `.mcp.json`. 6 tools available after Claude Code restart.
+- **Known schema issue:** `scrape_log` uses `started_at`/`completed_at`, not `created_at` — session protocol DB check query needs updating.
+
+### Next 3 Outcomes (prioritized)
+
+1. **Test coverage for core logic (~1 session)** — Set up vitest, write tests for `scoring.ts` (pure functions), `db.ts` migrations (fixture DB), and scraper response parsers (mock fixtures). Wire `npm test` into GitHub Actions CI.
+
+2. **Price history dashboard & early Phase 3 (~1-2 sessions)** — Price change badges in inventory table, sparkline component per vehicle, negotiation room estimator (days on lot × market delta), vehicle detail panel with price history. Infrastructure can be built now; full value comes as price history accumulates over weeks.
+
+3. **Validate MCP server tools (~30 min)** — After restart, test all 6 tools end-to-end, fix any runtime issues (including the `scrape_log` column name mismatch).

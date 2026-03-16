@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "scrape": "tsx scripts/run-scrape.ts",
-    "scrape:ci": "tsx scripts/ci-scrape.ts"
+    "scrape:ci": "tsx scripts/ci-scrape.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
@@ -34,6 +36,7 @@
     "postcss": "^8.4.39",
     "tailwindcss": "^3.4.6",
     "tsx": "^4.16.0",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "vitest": "^2.1.9"
   }
 }
