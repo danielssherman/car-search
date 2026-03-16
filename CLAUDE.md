@@ -177,9 +177,12 @@ Short imperative subject line. Group related changes (e.g., "Add Cars.com scrape
 
 ## Known Issues & Debt
 
-- No automated test suite — scoring.ts, db.ts migrations, and scraper response parsers are all untested
-- MCP server registered in `~/.claude.json` (project: `/Users/dsherman`) and `.mcp.json` (project root)
+- ~~No automated test suite~~ — DONE (Session 28). 155 tests via vitest: scoring (47), DDC parser (60), Algolia parser (48). CI workflow at `.github/workflows/test.yml`.
+- MCP server registered in `~/.claude.json` (project: `/Users/dsherman`) and `.mcp.json` (project root). Validated and working.
 - The 3-branch parallel instance experiment (Session 19) didn't work as designed — instances all committed to working directory instead of separate branches. Avoid this pattern; use sequential sessions instead.
+- **N+1 query in `getVehicles()`** — correlated subquery for best listing + listing_count runs per row. Works at 1,800 vehicles but will degrade at scale. Fix planned for Session 29.
+- **Price/MSRP conflation** — `upsertVehicles` uses `const price = v.msrp` (line 458). Scrapers report asking price in the msrp field. No way to distinguish MSRP from asking price yet.
+- **`first_seen` stale on re-listing** — if a vehicle is removed then reappears, `first_seen` retains original date, inflating days-on-lot in quality score.
 
 ---
 
@@ -199,27 +202,39 @@ _Revisit these as the project evolves. Not blocking current work._
 - **Self-hosted runner** — would unblock Cars.com + CarGurus scrapers and reduce CI costs. Could run on a cheap VPS or home machine.
 
 ### Product
-- **Test coverage** — scoring.ts, db.ts migrations, scraper response parsers all untested.
-- ~~**Register MCP server**~~ — DONE. Registered in `~/.claude.json` and `.mcp.json`.
-- **Price history visualization** — Phase 3 dealer intelligence depends on accumulated price_history data. Automated scraping is now running (every 6h via GH Actions) so data is accumulating.
+- ~~**Test coverage**~~ — DONE (Session 28). 155 tests, CI workflow running.
+- ~~**Register MCP server**~~ — DONE. Registered and validated.
+- **Vehicle detail panel** — no way to click into a vehicle for full specs, packages, all listings. Planned Session 28.
+- **Pagination** — hardcoded LIMIT 100, can't browse full 1,800+ vehicle inventory. Planned Session 28.
+- **Price history visualization** — Phase 3 dealer intelligence depends on accumulated price_history data. Automated scraping is now running (every 6h via GH Actions) so data is accumulating. UI planned Session 31.
 - **Smart alerts** — Phase 6: price drop notifications, new inventory alerts.
+
+### Data Quality
+- ~~**$0 price bug**~~ — FIXED (Session 28). DDC API intermittently returns empty pricing. Parser now checks 6 price fields. Upsert guards against $0 overwrites. 15 listings backfilled.
+- **1 remaining $0 vehicle** — `3MW23CM06R8E69881` (2024 230i at Stevens Creek) never had a valid price. Will resolve on next scrape with improved parser.
+- **SCRAPE_API_KEY is weak** — "bmw-tracker-secret-key-2024" should be rotated to a random string.
+- **Algolia API key in git history** — should be rotated with provider.
 
 ---
 
 ## Current State
 
-_Last updated: 2026-03-16 (Session 27)_
+_Last updated: 2026-03-16 (Session 28)_
 
 - **Branch:** main
-- **Automated scraping:** GitHub Actions cron every 6h, SQLite DB persisted to Cloudflare R2. Working scrapers: DDC (3 dealers), Algolia (2 dealers). ~1,800 vehicles per run. 44 scrapes completed since 2026-03-12.
-- **DB:** 1,863 vehicles, 2,005 listings across 5 dealers. 1,859 price history records. Active dealers: Stevens Creek (663), Peter Pan (322), Fremont (305), San Rafael (275), SF (215).
-- **MCP server:** Registered in `~/.claude.json` and `.mcp.json`. 6 tools available after Claude Code restart.
+- **Automated scraping:** GitHub Actions cron every 6h, SQLite DB persisted to Cloudflare R2. Working scrapers: DDC (3 dealers), Algolia (2 dealers). ~1,800 vehicles per run. 44 scrapes since 2026-03-12.
+- **DB:** 1,863 vehicles, 2,005 listings across 5 dealers. 1,859 price history records. 1 remaining $0 listing (will auto-fix on next scrape).
+- **Tests:** 155 tests via vitest (scoring: 47, DDC parser: 60, Algolia parser: 48). CI workflow `.github/workflows/test.yml` runs on push/PR.
+- **MCP server:** Registered and validated. 6 tools working.
+- **DDC parser:** Checks 6 price fields with `parsePrice()` helper. Upsert guards against $0 price overwrites.
 - **Known schema issue:** `scrape_log` uses `started_at`/`completed_at`, not `created_at` — session protocol DB check query needs updating.
 
-### Next 3 Outcomes (prioritized)
+### Next 5 Sessions (planned)
 
-1. **Test coverage for core logic (~1 session)** — Set up vitest, write tests for `scoring.ts` (pure functions), `db.ts` migrations (fixture DB), and scraper response parsers (mock fixtures). Wire `npm test` into GitHub Actions CI.
+See full plan: `.claude/plans/humming-floating-elephant.md`
 
-2. **Price history dashboard & early Phase 3 (~1-2 sessions)** — Price change badges in inventory table, sparkline component per vehicle, negotiation room estimator (days on lot × market delta), vehicle detail panel with price history. Infrastructure can be built now; full value comes as price history accumulates over weeks.
-
-3. **Validate MCP server tools (~30 min)** — After restart, test all 6 tools end-to-end, fix any runtime issues (including the `scrape_log` column name mismatch).
+1. **Session 28: Vehicle detail panel + pagination** — Click-to-expand vehicle details, browse full inventory, condition filter in UI.
+2. **Session 29: Database performance** — Rewrite N+1 query with CTEs, add missing indexes, price history dedup, consolidate stats queries.
+3. **Session 30: API hardening** — Input validation, response envelopes, new `/api/price-history/[vin]` and `/api/scrape-health` endpoints.
+4. **Session 31: Price history UI** — Timeline in detail panel, price stability badges, scrape health dashboard.
+5. **Session 32: Comparison redesign + MCP enrichment** — Full-screen comparison overlay, packages visibility, `get_price_history` MCP tool.
