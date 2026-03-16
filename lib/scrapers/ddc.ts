@@ -84,15 +84,15 @@ export function parseDDCInventory(data: any, dealer: DDCDealerConfig): ScrapedVe
 
       let msrp = 0;
       const tp = item.trackingPricing;
-      if (tp?.msrp) {
-        msrp = parseInt(String(tp.msrp).replace(/[^0-9]/g, ""));
-      }
-      if (!msrp && tp?.askingPrice) {
-        msrp = parseInt(String(tp.askingPrice).replace(/[^0-9]/g, ""));
-      }
-      if (!msrp && tp?.internetPrice) {
-        msrp = parseInt(String(tp.internetPrice).replace(/[^0-9]/g, ""));
-      }
+      const parsePrice = (v: unknown) =>
+        v ? parseInt(String(v).replace(/[^0-9]/g, "")) || 0 : 0;
+
+      msrp = parsePrice(tp?.msrp)
+        || parsePrice(tp?.askingPrice)
+        || parsePrice(tp?.internetPrice)
+        || parsePrice(tp?.salePrice)
+        || parsePrice(item.pricing?.retailPrice)
+        || parsePrice(item.pricing?.dprice?.[0]?.value);
 
       const bodyStyle =
         attrs.find((a) => a.name === "bodyStyle")?.value ||

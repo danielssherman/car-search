@@ -427,8 +427,8 @@ export function upsertVehicles(vehicles: ScrapedVehicle[]): {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
     ON CONFLICT(vin, source, dealer_name) DO UPDATE SET
       dealer_city = excluded.dealer_city,
-      price = excluded.price,
-      msrp = excluded.msrp,
+      price = CASE WHEN excluded.price > 0 THEN excluded.price ELSE listings.price END,
+      msrp = CASE WHEN excluded.msrp > 0 THEN excluded.msrp ELSE listings.msrp END,
       status = excluded.status,
       detail_url = excluded.detail_url,
       stock_number = excluded.stock_number,
