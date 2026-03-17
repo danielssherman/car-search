@@ -84,6 +84,7 @@ export interface InventoryFilters {
   sort?: string;
   search?: string;
   limit?: number;
+  offset?: number;
 }
 
 export interface AISearchResponse {

@@ -10,7 +10,8 @@ import { FilterBar } from "@/components/FilterBar";
 import { InventoryTable } from "@/components/InventoryTable";
 import { ComparePanel } from "@/components/ComparePanel";
 import { AISearchBanner, AISearchLoadingSkeleton } from "@/components/AISearchBanner";
-import { RefreshCw, GitCompare } from "lucide-react";
+import { VehicleDetailPanel } from "@/components/VehicleDetailPanel";
+import { RefreshCw, GitCompare, ChevronLeft, ChevronRight } from "lucide-react";
 
 function formatTime(iso: string | null): string {
   if (!iso) return "Never";
@@ -57,6 +58,15 @@ function DashboardContent() {
   const [toast, setToast] = useState<string | null>(null);
   const [selectedVins, setSelectedVins] = useState<Set<string>>(new Set());
   const [showCompare, setShowCompare] = useState(false);
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalVehicles, setTotalVehicles] = useState(0);
+  const PAGE_SIZE = 50;
+
+  // Detail panel state
+  const [detailVin, setDetailVin] = useState<string | null>(null);
 
   // AI search state
   const [aiSearchActive, setAiSearchActive] = useState(false);
@@ -132,6 +142,7 @@ function DashboardContent() {
       if (key === "make") {
         newFilters.models = [];
       }
+      setPage(1);
       setFilters(newFilters);
       updateUrl(newFilters);
     },
@@ -147,6 +158,7 @@ function DashboardContent() {
       }
 
       const newFilters = { ...filters, [key]: values };
+      setPage(1);
       setFilters(newFilters);
       updateUrl(newFilters);
     },
@@ -201,6 +213,8 @@ function DashboardContent() {
       if (filters.maxPrice) params.set("maxPrice", filters.maxPrice);
       if (filters.sort !== "best_value") params.set("sort", filters.sort);
       if (filters.search) params.set("search", filters.search);
+      params.set("page", String(page));
+      params.set("pageSize", String(PAGE_SIZE));
 
       const [inventoryRes, statsRes, dealersRes] = await Promise.all([
         fetch(`/api/inventory?${params.toString()}`),
@@ -213,6 +227,8 @@ function DashboardContent() {
       const dealersData = await dealersRes.json();
 
       setVehicles(inventoryData.vehicles || []);
+      setTotalPages(inventoryData.totalPages || 1);
+      setTotalVehicles(inventoryData.total || 0);
       setStats(statsData);
       setDealers(dealersData.dealers || []);
     } catch (err) {
@@ -220,7 +236,7 @@ function DashboardContent() {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, page]);
 
   useEffect(() => {
     // Don't fetch with regular filters if AI results are showing
@@ -341,7 +357,7 @@ function DashboardContent() {
               Bay Area Car Tracker
             </h1>
             <p className="mt-0.5 text-xs text-bmw-muted">
-              Top 100 by value score &middot; Last updated:{" "}
+              {totalVehicles > 0 ? `${totalVehicles.toLocaleString()} vehicles` : ""} &middot; Last updated:{" "}
               {formatTime(stats?.last_scraped ?? null)}
             </p>
           </div>
@@ -414,18 +430,43 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* Results count */}
+      {/* Results count + pagination */}
       <div className="mx-auto max-w-7xl px-4 py-3 md:px-6">
-        <p className="text-sm text-bmw-muted">
-          {loading
-            ? "Loading..."
-            : `${vehicles.length} vehicle${vehicles.length !== 1 ? "s" : ""}`}
-          {selectedVins.size > 0 && (
-            <span className="ml-2 text-bmw-blue">
-              ({selectedVins.size} selected for comparison)
-            </span>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-bmw-muted">
+            {loading
+              ? "Loading..."
+              : totalVehicles > 0
+              ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, totalVehicles)} of ${totalVehicles.toLocaleString()}`
+              : "No vehicles found"}
+            {selectedVins.size > 0 && (
+              <span className="ml-2 text-bmw-blue">
+                ({selectedVins.size} selected)
+              </span>
+            )}
+          </p>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1 || loading}
+                className="rounded-md border border-bmw-border p-1.5 text-bmw-muted hover:text-white hover:border-bmw-blue/50 disabled:opacity-30 disabled:hover:text-bmw-muted disabled:hover:border-bmw-border transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-sm tabular-nums text-bmw-muted">
+                {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || loading}
+                className="rounded-md border border-bmw-border p-1.5 text-bmw-muted hover:text-white hover:border-bmw-blue/50 disabled:opacity-30 disabled:hover:text-bmw-muted disabled:hover:border-bmw-border transition-colors"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
           )}
-        </p>
+        </div>
       </div>
 
       {/* Inventory Table */}
@@ -435,8 +476,17 @@ function DashboardContent() {
           loading={loading}
           selectedVins={selectedVins}
           onToggleSelect={handleToggleSelect}
+          onRowClick={(vin) => setDetailVin(vin)}
         />
       </div>
+
+      {/* Vehicle Detail Panel */}
+      {detailVin && (
+        <VehicleDetailPanel
+          vin={detailVin}
+          onClose={() => setDetailVin(null)}
+        />
+      )}
 
       {/* Compare Panel */}
       {showCompare && selectedVehicles.length > 0 && (

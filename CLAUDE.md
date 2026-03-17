@@ -214,8 +214,8 @@ _Revisit these as the project evolves. Not blocking current work._
 ### Product
 - ~~**Test coverage**~~ — DONE (Session 28). 155 tests, CI workflow running.
 - ~~**Register MCP server**~~ — DONE. Registered and validated.
-- **Vehicle detail panel** — no way to click into a vehicle for full specs, packages, all listings. Planned Session 28.
-- **Pagination** — hardcoded LIMIT 100, can't browse full 1,800+ vehicle inventory. Planned Session 28.
+- ~~**Vehicle detail panel**~~ — DONE (Session 29). Click row → slide-over panel with specs, packages, all listings.
+- ~~**Pagination**~~ — DONE (Session 29). 50 per page, prev/next, `countVehicles()` + `buildFilterConditions()` helper.
 - **Price history visualization** — Phase 3 dealer intelligence depends on accumulated price_history data. Automated scraping is now running (every 6h via GH Actions) so data is accumulating. UI planned Session 31.
 - **Smart alerts** — Phase 6: price drop notifications, new inventory alerts.
 
@@ -233,20 +233,21 @@ _Last updated: 2026-03-17 (Session 29)_
 
 - **Branch:** main
 - **Automated scraping:** GitHub Actions cron every 6h, SQLite DB persisted to Cloudflare R2. Working scrapers: DDC (10 dealers), Algolia (2 dealers). ~3,500 vehicles per run. ~8 min per CI run.
-- **Multi-make expansion:** 7 makes across 12 dealers (BMW, Mercedes-Benz, Land Rover, Jaguar, MINI, Volvo, Cadillac). Added Session 29. Price history accumulating for all makes since 2026-03-17.
+- **Multi-make expansion:** 7 makes across 12 dealers (BMW, Mercedes-Benz, Land Rover, Jaguar, MINI, Volvo, Cadillac). Price history accumulating for all makes since 2026-03-17.
 - **DB:** ~3,476 vehicles across 12 dealers, 7 makes. Local DB syncs from R2 via `./scripts/sync-db.sh`.
-- **Filter UI:** Chip + popover pattern with multi-select for Model, Dealer, Color, Condition. Replaced native dropdowns. Added Session 29.
+- **Filter UI:** Chip + popover pattern with multi-select for Model, Dealer, Color, Condition. Replaced native dropdowns.
+- **Vehicle detail panel:** Click any table row → slide-over panel with full specs, packages, all listings, external link. Fetches `/api/inventory/[vin]`.
+- **Pagination:** 50 vehicles per page with prev/next controls. API returns `{ vehicles, total, page, pageSize, totalPages }`. `countVehicles()` reuses `buildFilterConditions()` helper.
 - **Tests:** 155 tests via vitest (scoring: 47, DDC parser: 60, Algolia parser: 48). CI workflow `.github/workflows/test.yml` runs on push/PR.
 - **MCP server:** Registered and validated. 6 tools working.
-- **DDC parser:** Checks 6 price fields with `parsePrice()` helper. Upsert guards against $0 price overwrites.
 - **Known schema issue:** `scrape_log` uses `started_at`/`completed_at`, not `created_at` — session protocol DB check query needs updating.
 
-### Next 5 Sessions (planned)
+### Next Sessions (planned)
 
 See full plan: `.claude/plans/humming-floating-elephant.md`
 
-1. **Session 28: Vehicle detail panel + pagination** — Click-to-expand vehicle details, browse full inventory, condition filter in UI.
-2. **Session 29: Database performance** — Rewrite N+1 query with CTEs, add missing indexes, price history dedup, consolidate stats queries.
+1. ~~**Session 28: Vehicle detail panel + pagination**~~ — DONE.
+2. **Session 29: Database performance** — Rewrite N+1 query with CTEs, add missing indexes, price history dedup, consolidate stats queries. More urgent now at 3,500 vehicles.
 3. **Session 30: API hardening** — Input validation, response envelopes, new `/api/price-history/[vin]` and `/api/scrape-health` endpoints.
 4. **Session 31: Price history UI** — Timeline in detail panel, price stability badges, scrape health dashboard.
 5. **Session 32: Comparison redesign + MCP enrichment** — Full-screen comparison overlay, packages visibility, `get_price_history` MCP tool.

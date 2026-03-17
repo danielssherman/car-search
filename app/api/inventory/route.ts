@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getVehicles } from "@/lib/db";
+import { getVehicles, countVehicles } from "@/lib/db";
 import type { InventoryFilters } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
@@ -11,6 +11,10 @@ export async function GET(request: NextRequest) {
     const arr = val.split(",").map((s) => s.trim()).filter(Boolean);
     return arr.length > 0 ? arr : undefined;
   };
+
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);
+  const pageSize = Math.max(1, Math.min(200, parseInt(searchParams.get("pageSize") || "50") || 50));
+  const offset = (page - 1) * pageSize;
 
   const filters: InventoryFilters = {
     make: searchParams.get("make") || undefined,
@@ -31,11 +35,22 @@ export async function GET(request: NextRequest) {
     status: searchParams.get("status") || undefined,
     sort: searchParams.get("sort") || undefined,
     search: searchParams.get("search") || undefined,
+    limit: pageSize,
+    offset,
   };
 
   try {
+    const total = countVehicles(filters);
     const vehicles = getVehicles(filters);
-    return NextResponse.json({ vehicles, count: vehicles.length });
+    const totalPages = Math.ceil(total / pageSize);
+    return NextResponse.json({
+      vehicles,
+      count: vehicles.length,
+      total,
+      page,
+      pageSize,
+      totalPages,
+    });
   } catch (err) {
     console.error("Error fetching inventory:", err);
     return NextResponse.json(

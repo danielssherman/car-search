@@ -216,8 +216,10 @@ const VEHICLE_SELECT = `
   ${BEST_LISTING_JOIN}
 `;
 
-export function getVehicles(filters: InventoryFilters): Vehicle[] {
-  const db = getDb();
+function buildFilterConditions(filters: InventoryFilters): {
+  where: string;
+  params: unknown[];
+} {
   const conditions: string[] = ["v.removed_at IS NULL"];
   const params: unknown[] = [];
 
@@ -289,6 +291,14 @@ export function getVehicles(filters: InventoryFilters): Vehicle[] {
     params.push(term, term, term, term, term, term);
   }
 
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  return { where, params };
+}
+
+export function getVehicles(filters: InventoryFilters): Vehicle[] {
+  const db = getDb();
+  const { where, params } = buildFilterConditions(filters);
+
   let orderBy = "v.quality_score DESC";
   if (filters.sort === "price_asc") orderBy = "COALESCE(bl.price, 999999999) ASC";
   else if (filters.sort === "price_desc") orderBy = "COALESCE(bl.price, 0) DESC";
@@ -296,10 +306,32 @@ export function getVehicles(filters: InventoryFilters): Vehicle[] {
   else if (filters.sort === "best_value") orderBy = "v.quality_score DESC";
 
   const limit = filters.limit || 100;
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const sql = `${VEHICLE_SELECT} ${where} ORDER BY ${orderBy} LIMIT ?`;
+  const limitOffsetParams: unknown[] = [limit];
 
-  return db.prepare(sql).all(...params, limit) as Vehicle[];
+  let limitClause = "LIMIT ?";
+  if (filters.offset !== undefined) {
+    limitClause += " OFFSET ?";
+    limitOffsetParams.push(filters.offset);
+  }
+
+  const sql = `${VEHICLE_SELECT} ${where} ORDER BY ${orderBy} ${limitClause}`;
+
+  return db.prepare(sql).all(...params, ...limitOffsetParams) as Vehicle[];
+}
+
+export function countVehicles(filters: InventoryFilters): number {
+  const db = getDb();
+  const { where, params } = buildFilterConditions(filters);
+
+  const sql = `
+    SELECT COUNT(*) as total
+    FROM vehicles v
+    ${BEST_LISTING_JOIN}
+    ${where}
+  `;
+
+  const row = db.prepare(sql).get(...params) as { total: number };
+  return row.total;
 }
 
 export function getVehicleByVin(vin: string): Vehicle | undefined {

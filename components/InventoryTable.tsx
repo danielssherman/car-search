@@ -48,11 +48,13 @@ export function InventoryTable({
   loading,
   selectedVins,
   onToggleSelect,
+  onRowClick,
 }: {
   vehicles: Vehicle[];
   loading: boolean;
   selectedVins: Set<string>;
   onToggleSelect: (vin: string) => void;
+  onRowClick?: (vin: string) => void;
 }) {
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -172,7 +174,10 @@ export function InventoryTable({
               return (
                 <tr
                   key={vehicle.vin}
+                  onClick={() => onRowClick?.(vehicle.vin)}
                   className={`transition-colors hover:bg-white/[0.02] ${
+                    onRowClick ? "cursor-pointer" : ""
+                  } ${
                     index % 2 === 0 ? "bg-transparent" : "bg-white/[0.01]"
                   } ${
                     selectedVins.has(vehicle.vin)
@@ -180,7 +185,7 @@ export function InventoryTable({
                       : ""
                   }`}
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selectedVins.has(vehicle.vin)}
@@ -216,7 +221,7 @@ export function InventoryTable({
                   <td className="px-4 py-3">
                     <StatusBadge status={vehicle.status} />
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     {vehicle.detail_url && (
                       <a
                         href={vehicle.detail_url}
