@@ -10,7 +10,7 @@ interface AISearchBannerProps {
   onDismiss: () => void;
 }
 
-function FilterChip({ label }: { label: string }) {
+function AIFilterChip({ label }: { label: string }) {
   return (
     <span className="inline-flex items-center rounded-full bg-purple-500/15 px-2.5 py-0.5 text-xs font-medium text-purple-300 border border-purple-500/20">
       {label}
@@ -28,11 +28,17 @@ export function AISearchBanner({
   if (filters.models && filters.models.length > 0)
     chips.push(`Models: ${filters.models.join(", ")}`);
   else if (filters.model) chips.push(`Model: ${filters.model}`);
-  if (filters.color) chips.push(`Color: ${filters.color}`);
-  if (filters.condition) chips.push(`Condition: ${filters.condition}`);
+  if (filters.colors && filters.colors.length > 0)
+    chips.push(`Colors: ${filters.colors.join(", ")}`);
+  else if (filters.color) chips.push(`Color: ${filters.color}`);
+  if (filters.conditions && filters.conditions.length > 0)
+    chips.push(`Condition: ${filters.conditions.join(", ")}`);
+  else if (filters.condition) chips.push(`Condition: ${filters.condition}`);
   if (filters.minPrice) chips.push(`Min: $${filters.minPrice.toLocaleString()}`);
   if (filters.maxPrice) chips.push(`Max: $${filters.maxPrice.toLocaleString()}`);
-  if (filters.dealer) chips.push(`Dealer: ${filters.dealer}`);
+  if (filters.dealers && filters.dealers.length > 0)
+    chips.push(`Dealers: ${filters.dealers.join(", ")}`);
+  else if (filters.dealer) chips.push(`Dealer: ${filters.dealer}`);
   if (filters.search) chips.push(`Trim: ${filters.search}`);
   if (filters.sort && filters.sort !== "best_value")
     chips.push(`Sort: ${filters.sort.replace("_", " ")}`);
@@ -51,7 +57,7 @@ export function AISearchBanner({
             {chips.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {chips.map((chip) => (
-                  <FilterChip key={chip} label={chip} />
+                  <AIFilterChip key={chip} label={chip} />
                 ))}
               </div>
             )}

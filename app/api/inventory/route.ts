@@ -5,12 +5,23 @@ import type { InventoryFilters } from "@/lib/types";
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
+  const parseMulti = (key: string): string[] | undefined => {
+    const val = searchParams.get(key);
+    if (!val) return undefined;
+    const arr = val.split(",").map((s) => s.trim()).filter(Boolean);
+    return arr.length > 0 ? arr : undefined;
+  };
+
   const filters: InventoryFilters = {
     make: searchParams.get("make") || undefined,
     model: searchParams.get("model") || undefined,
+    models: parseMulti("models"),
     dealer: searchParams.get("dealer") || undefined,
+    dealers: parseMulti("dealers"),
     color: searchParams.get("color") || undefined,
+    colors: parseMulti("colors"),
     condition: searchParams.get("condition") || undefined,
+    conditions: parseMulti("conditions"),
     maxPrice: searchParams.get("maxPrice")
       ? parseInt(searchParams.get("maxPrice")!)
       : undefined,

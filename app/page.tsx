@@ -65,11 +65,17 @@ function DashboardContent() {
   const [aiQuery, setAiQuery] = useState<string | null>(null);
   const [aiFilters, setAiFilters] = useState<InventoryFilters | null>(null);
 
+  const parseMultiParam = (key: string): string[] => {
+    const val = searchParams.get(key);
+    return val ? val.split(",").filter(Boolean) : [];
+  };
+
   const [filters, setFilters] = useState({
     make: searchParams.get("make") || "all",
-    model: searchParams.get("model") || "all",
-    dealer: searchParams.get("dealer") || "",
-    color: searchParams.get("color") || "",
+    models: parseMultiParam("models"),
+    dealers: parseMultiParam("dealers"),
+    colors: parseMultiParam("colors"),
+    conditions: parseMultiParam("conditions"),
     status: searchParams.get("status") || "all",
     minPrice: searchParams.get("minPrice") || "",
     maxPrice: searchParams.get("maxPrice") || "",
@@ -94,9 +100,10 @@ function DashboardContent() {
         params.set("aiQuery", aiQueryParam);
       } else {
         if (newFilters.make !== "all") params.set("make", newFilters.make);
-        if (newFilters.model !== "all") params.set("model", newFilters.model);
-        if (newFilters.dealer) params.set("dealer", newFilters.dealer);
-        if (newFilters.color) params.set("color", newFilters.color);
+        if (newFilters.models.length > 0) params.set("models", newFilters.models.join(","));
+        if (newFilters.dealers.length > 0) params.set("dealers", newFilters.dealers.join(","));
+        if (newFilters.colors.length > 0) params.set("colors", newFilters.colors.join(","));
+        if (newFilters.conditions.length > 0) params.set("conditions", newFilters.conditions.join(","));
         if (newFilters.status !== "all") params.set("status", newFilters.status);
         if (newFilters.minPrice) params.set("minPrice", newFilters.minPrice);
         if (newFilters.maxPrice) params.set("maxPrice", newFilters.maxPrice);
@@ -121,10 +128,25 @@ function DashboardContent() {
       }
 
       const newFilters = { ...filters, [key]: value };
-      // Reset model when make changes
+      // Reset models when make changes
       if (key === "make") {
-        newFilters.model = "all";
+        newFilters.models = [];
       }
+      setFilters(newFilters);
+      updateUrl(newFilters);
+    },
+    [filters, updateUrl, aiExplanation]
+  );
+
+  const handleMultiFilterChange = useCallback(
+    (key: string, values: string[]) => {
+      if (aiExplanation) {
+        setAiExplanation(null);
+        setAiQuery(null);
+        setAiFilters(null);
+      }
+
+      const newFilters = { ...filters, [key]: values };
       setFilters(newFilters);
       updateUrl(newFilters);
     },
@@ -134,9 +156,10 @@ function DashboardContent() {
   const handleClearFilters = useCallback(() => {
     const cleared = {
       make: "all",
-      model: "all",
-      dealer: "",
-      color: "",
+      models: [] as string[],
+      dealers: [] as string[],
+      colors: [] as string[],
+      conditions: [] as string[],
       status: "all",
       minPrice: "",
       maxPrice: "",
@@ -153,9 +176,10 @@ function DashboardContent() {
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (filters.make !== "all") count++;
-    if (filters.model !== "all") count++;
-    if (filters.dealer) count++;
-    if (filters.color) count++;
+    if (filters.models.length > 0) count++;
+    if (filters.dealers.length > 0) count++;
+    if (filters.colors.length > 0) count++;
+    if (filters.conditions.length > 0) count++;
     if (filters.status !== "all") count++;
     if (filters.minPrice) count++;
     if (filters.maxPrice) count++;
@@ -168,9 +192,10 @@ function DashboardContent() {
     try {
       const params = new URLSearchParams();
       if (filters.make !== "all") params.set("make", filters.make);
-      if (filters.model !== "all") params.set("model", filters.model);
-      if (filters.dealer) params.set("dealer", filters.dealer);
-      if (filters.color) params.set("color", filters.color);
+      if (filters.models.length > 0) params.set("models", filters.models.join(","));
+      if (filters.dealers.length > 0) params.set("dealers", filters.dealers.join(","));
+      if (filters.colors.length > 0) params.set("colors", filters.colors.join(","));
+      if (filters.conditions.length > 0) params.set("conditions", filters.conditions.join(","));
       if (filters.status !== "all") params.set("status", filters.status);
       if (filters.minPrice) params.set("minPrice", filters.minPrice);
       if (filters.maxPrice) params.set("maxPrice", filters.maxPrice);
@@ -302,11 +327,6 @@ function DashboardContent() {
     [vehicles, selectedVins]
   );
 
-  const colors = useMemo(() => {
-    if (!stats?.color_distribution) return [];
-    return Object.keys(stats.color_distribution).sort();
-  }, [stats]);
-
   return (
     <div
       className={`min-h-screen ${
@@ -358,11 +378,13 @@ function DashboardContent() {
       <FilterBar
         filters={filters}
         onFilterChange={handleFilterChange}
+        onMultiFilterChange={handleMultiFilterChange}
         onClearFilters={handleClearFilters}
         dealers={dealers}
-        colors={colors}
         makes={stats?.makes || []}
-        models={stats?.models || []}
+        modelCounts={stats?.count_by_model || {}}
+        colorCounts={stats?.color_distribution || {}}
+        conditionCounts={stats?.count_by_condition || {}}
         activeFilterCount={activeFilterCount}
         aiSearchActive={aiSearchActive}
         onToggleAiSearch={() => {

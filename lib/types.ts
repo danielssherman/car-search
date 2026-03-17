@@ -71,10 +71,13 @@ export interface ScrapeLog {
 export interface InventoryFilters {
   make?: string;
   model?: string;
-  models?: string[]; // multi-model filter for AI search (e.g., ["X5", "X7", "X3"])
+  models?: string[];
   dealer?: string;
+  dealers?: string[];
   color?: string;
+  colors?: string[];
   condition?: string;
+  conditions?: string[];
   maxPrice?: number;
   minPrice?: number;
   status?: string;
@@ -93,6 +96,8 @@ export interface AISearchResponse {
 export interface InventoryStats {
   total: number;
   count_by_make: Record<string, number>;
+  count_by_model: Record<string, number>;
+  count_by_condition: Record<string, number>;
   total_dealers: number;
   avg_price: number;
   min_price: number;

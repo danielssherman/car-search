@@ -235,19 +235,33 @@ export function getVehicles(filters: InventoryFilters): Vehicle[] {
     params.push(filters.model);
   }
 
-  if (filters.dealer) {
+  if (filters.dealers && filters.dealers.length > 0) {
+    const placeholders = filters.dealers.map(() => "?").join(", ");
+    conditions.push(
+      `EXISTS (SELECT 1 FROM listings WHERE vin = v.vin AND removed_at IS NULL AND dealer_name IN (${placeholders}))`
+    );
+    params.push(...filters.dealers);
+  } else if (filters.dealer) {
     conditions.push(
       "EXISTS (SELECT 1 FROM listings WHERE vin = v.vin AND removed_at IS NULL AND dealer_name LIKE ?)"
     );
     params.push(`%${filters.dealer}%`);
   }
 
-  if (filters.color) {
+  if (filters.colors && filters.colors.length > 0) {
+    const placeholders = filters.colors.map(() => "?").join(", ");
+    conditions.push(`v.exterior_color IN (${placeholders})`);
+    params.push(...filters.colors);
+  } else if (filters.color) {
     conditions.push("v.exterior_color LIKE ?");
     params.push(`%${filters.color}%`);
   }
 
-  if (filters.condition && filters.condition !== "all") {
+  if (filters.conditions && filters.conditions.length > 0) {
+    const placeholders = filters.conditions.map(() => "?").join(", ");
+    conditions.push(`v.condition IN (${placeholders})`);
+    params.push(...filters.conditions);
+  } else if (filters.condition && filters.condition !== "all") {
     conditions.push("v.condition = ?");
     params.push(filters.condition);
   }
@@ -426,11 +440,37 @@ export function getStats(): InventoryStats {
     )
     .all() as { make: string }[];
 
+  const modelRows = db
+    .prepare(
+      `SELECT model, COUNT(*) as count
+      FROM vehicles WHERE removed_at IS NULL AND model != ''
+      GROUP BY model ORDER BY count DESC`
+    )
+    .all() as { model: string; count: number }[];
+
+  const count_by_model: Record<string, number> = {};
+  for (const row of modelRows) {
+    count_by_model[row.model] = row.count;
+  }
+
   const models = db
     .prepare(
       "SELECT DISTINCT model FROM vehicles WHERE removed_at IS NULL AND model != '' ORDER BY model"
     )
     .all() as { model: string }[];
+
+  const conditionRows = db
+    .prepare(
+      `SELECT condition, COUNT(*) as count
+      FROM vehicles WHERE removed_at IS NULL AND condition != ''
+      GROUP BY condition ORDER BY count DESC`
+    )
+    .all() as { condition: string; count: number }[];
+
+  const count_by_condition: Record<string, number> = {};
+  for (const row of conditionRows) {
+    count_by_condition[row.condition] = row.count;
+  }
 
   const colors = db
     .prepare(
@@ -449,6 +489,8 @@ export function getStats(): InventoryStats {
     ...counts,
     total_dealers: dealerCount.total,
     count_by_make,
+    count_by_model,
+    count_by_condition,
     makes: makes.map((m) => m.make),
     models: models.map((m) => m.model),
     color_distribution,
