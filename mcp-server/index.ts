@@ -5,6 +5,10 @@ import { z } from "zod";
 import {
   getVehicles,
   getVehicleByVin,
+  getListingsForVin,
+  getPriceHistory,
+  getNewVehicles,
+  getPriceDrops,
   getStats,
   getDealers,
   getLastScrapeTime,
@@ -166,6 +170,190 @@ server.tool(
           type: "text" as const,
           text: JSON.stringify(
             { count: dealers.length, dealers },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  }
+);
+
+// --- get_listings ---
+server.tool(
+  "get_listings",
+  "Get all listings for a specific vehicle (VIN) across all sources and dealers. Shows where the same car is listed and at what price — useful for cross-dealer arbitrage analysis.",
+  {
+    vin: z.string().describe("Vehicle Identification Number"),
+  },
+  async ({ vin }) => {
+    const listings = getListingsForVin(vin);
+
+    if (listings.length === 0) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `No active listings found for VIN: ${vin}`,
+          },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(
+            {
+              vin,
+              listing_count: listings.length,
+              listings: listings.map((l) => ({
+                source: l.source,
+                dealer_name: l.dealer_name,
+                dealer_city: l.dealer_city,
+                price: l.price,
+                msrp: l.msrp,
+                status: l.status,
+                detail_url: l.detail_url,
+                first_seen: l.first_seen,
+                last_seen: l.last_seen,
+              })),
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  }
+);
+
+// --- get_price_history ---
+server.tool(
+  "get_price_history",
+  "Get the full price change timeline for a specific vehicle (VIN). Shows every recorded price point across all sources and dealers, ordered chronologically. Useful for tracking price trends and identifying negotiation opportunities.",
+  {
+    vin: z.string().describe("Vehicle Identification Number"),
+  },
+  async ({ vin }) => {
+    const history = getPriceHistory(vin);
+
+    if (history.length === 0) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `No price history found for VIN: ${vin}`,
+          },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(
+            {
+              vin,
+              total_records: history.length,
+              history: history.map((h) => ({
+                source: h.source,
+                dealer_name: h.dealer_name,
+                price: h.price,
+                recorded_at: h.recorded_at,
+              })),
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  }
+);
+
+// --- get_new_vehicles ---
+server.tool(
+  "get_new_vehicles",
+  "Get vehicles first seen since a given date. Useful for tracking new inventory arrivals across all dealers.",
+  {
+    since: z
+      .string()
+      .describe(
+        "ISO date string (e.g., '2026-03-15' or '2026-03-15T00:00:00Z'). Returns vehicles first seen on or after this date."
+      ),
+    limit: z
+      .number()
+      .optional()
+      .describe("Max results (default: 50, max: 200)"),
+  },
+  async ({ since, limit }) => {
+    const effectiveLimit = Math.min(limit || 50, 200);
+    const vehicles = getNewVehicles(since, effectiveLimit);
+
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(
+            {
+              since,
+              count: vehicles.length,
+              vehicles: vehicles.map((v) => ({
+                vin: v.vin,
+                year: v.year,
+                make: v.make,
+                model: v.model,
+                trim: v.trim,
+                exterior_color: v.exterior_color,
+                price: v.price,
+                condition: v.condition,
+                dealer_name: v.dealer_name,
+                dealer_city: v.dealer_city,
+                quality_score: v.quality_score,
+                first_seen: v.first_seen,
+              })),
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  }
+);
+
+// --- get_price_drops ---
+server.tool(
+  "get_price_drops",
+  "Get listings that had price decreases since a given date. Returns the old price, new price, drop amount, and percentage — sorted by largest drop first. Useful for finding deals and tracking dealer pricing behavior.",
+  {
+    since: z
+      .string()
+      .describe(
+        "ISO date string (e.g., '2026-03-15'). Returns price drops recorded on or after this date."
+      ),
+    limit: z
+      .number()
+      .optional()
+      .describe("Max results (default: 50, max: 200)"),
+  },
+  async ({ since, limit }) => {
+    const effectiveLimit = Math.min(limit || 50, 200);
+    const drops = getPriceDrops(since, effectiveLimit);
+
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(
+            {
+              since,
+              count: drops.length,
+              price_drops: drops,
+            },
             null,
             2
           ),

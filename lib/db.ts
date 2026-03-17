@@ -4,6 +4,7 @@ import fs from "fs";
 import type {
   Vehicle,
   Listing,
+  PriceHistory,
   InventoryFilters,
   InventoryStats,
   DealerInfo,
@@ -297,6 +298,82 @@ export function getListingsForVin(vin: string): Listing[] {
       "SELECT * FROM listings WHERE vin = ? AND removed_at IS NULL ORDER BY price ASC"
     )
     .all(vin) as Listing[];
+}
+
+export function getPriceHistory(vin: string): PriceHistory[] {
+  const db = getDb();
+  return db
+    .prepare(
+      "SELECT * FROM price_history WHERE vin = ? ORDER BY recorded_at ASC"
+    )
+    .all(vin) as PriceHistory[];
+}
+
+export function getNewVehicles(since: string, limit: number = 50): Vehicle[] {
+  const db = getDb();
+  return db
+    .prepare(
+      `${VEHICLE_SELECT} WHERE v.removed_at IS NULL AND v.first_seen >= ? ORDER BY v.first_seen DESC LIMIT ?`
+    )
+    .all(since, limit) as Vehicle[];
+}
+
+export function getPriceDrops(
+  since: string,
+  limit: number = 50
+): Array<{
+  vin: string;
+  year: number;
+  make: string;
+  model: string;
+  trim: string;
+  dealer_name: string;
+  source: string;
+  old_price: number;
+  new_price: number;
+  drop_amount: number;
+  drop_pct: number;
+  changed_at: string;
+}> {
+  const db = getDb();
+  return db
+    .prepare(
+      `SELECT
+        ph2.vin, v.year, v.make, v.model, v.trim,
+        ph2.dealer_name, ph2.source,
+        ph1.price as old_price,
+        ph2.price as new_price,
+        (ph1.price - ph2.price) as drop_amount,
+        ROUND((ph1.price - ph2.price) * 100.0 / ph1.price, 1) as drop_pct,
+        ph2.recorded_at as changed_at
+      FROM price_history ph2
+      JOIN price_history ph1 ON ph1.id = (
+        SELECT id FROM price_history
+        WHERE vin = ph2.vin AND source = ph2.source AND dealer_name = ph2.dealer_name
+          AND recorded_at < ph2.recorded_at
+        ORDER BY recorded_at DESC LIMIT 1
+      )
+      JOIN vehicles v ON v.vin = ph2.vin
+      WHERE ph2.recorded_at >= ?
+        AND ph2.price < ph1.price
+        AND ph1.price > 0
+      ORDER BY drop_amount DESC
+      LIMIT ?`
+    )
+    .all(since, limit) as Array<{
+    vin: string;
+    year: number;
+    make: string;
+    model: string;
+    trim: string;
+    dealer_name: string;
+    source: string;
+    old_price: number;
+    new_price: number;
+    drop_amount: number;
+    drop_pct: number;
+    changed_at: string;
+  }>;
 }
 
 export function getStats(): InventoryStats {
