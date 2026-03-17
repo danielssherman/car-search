@@ -47,6 +47,7 @@ mcp-server/
 scripts/
 ├── run-scrape.ts       Manual one-off scrape
 ├── ci-scrape.ts        CI entry point — calls runScrape() + WAL checkpoint for R2 upload
+├── sync-db.sh          Download latest DB from Cloudflare R2 to local
 ├── seed-sample.ts      Generate sample data for dev/demo
 .github/workflows/
 ├── scrape.yml          Cron scraper: every 6h, Playwright in CI, SQLite persisted to Cloudflare R2
@@ -70,17 +71,24 @@ The `getVehicles()` query JOINs vehicles with cheapest active listing per VIN an
 
 ---
 
-## Active Dealers (5 working)
+## Active Dealers (12 working)
 
-| Dealer | Platform | Scraper |
-|--------|----------|---------|
-| Stevens Creek BMW (San Jose) | DDC/DealerOn | ddc.ts (Playwright + API intercept + pagination) |
-| BMW of Fremont | DDC/DealerOn | ddc.ts |
-| BMW of San Rafael (fka Marin BMW) | DDC/DealerOn | ddc.ts |
-| Peter Pan BMW (San Mateo) | Algolia | algolia.ts (direct API, no browser) |
-| BMW of San Francisco | DealerInspire/Algolia | algolia.ts |
+| Dealer | City | Make | Platform | Scraper |
+|--------|------|------|----------|---------|
+| Mercedes-Benz of Stevens Creek | San Jose | Mercedes-Benz | DDC/DealerOn | ddc.ts |
+| Stevens Creek BMW | San Jose | BMW | DDC/DealerOn | ddc.ts |
+| BMW of Mountain View | Mountain View | BMW | DDC/DealerOn | ddc.ts |
+| Peter Pan BMW | San Mateo | BMW | Algolia | algolia.ts |
+| BMW of Fremont | Fremont | BMW | DDC/DealerOn | ddc.ts |
+| BMW of San Rafael | San Rafael | BMW | DDC/DealerOn | ddc.ts |
+| BMW of San Francisco | San Francisco | BMW | Algolia | algolia.ts |
+| Volvo Cars Walnut Creek | Walnut Creek | Volvo | DDC/DealerOn | ddc.ts |
+| MINI of Stevens Creek | Santa Clara | MINI | DDC/DealerOn | ddc.ts |
+| Land Rover Marin | Corte Madera | Land Rover | DDC/DealerOn | ddc.ts |
+| Putnam Cadillac | Burlingame | Cadillac | DDC/DealerOn | ddc.ts |
+| Jaguar Marin | Corte Madera | Jaguar | DDC/DealerOn | ddc.ts |
 
-**Not working:** East Bay BMW (Pleasanton) — Akamai bot manager blocks all automated access. Would need stealth plugin or residential proxy.
+**Not working:** East Bay BMW (Pleasanton) — Akamai bot manager blocks all automated access. Lexus Stevens Creek — DDC confirmed but search URL needs verification.
 
 ---
 
@@ -166,7 +174,7 @@ Short imperative subject line. Group related changes (e.g., "Add Cars.com scrape
 | 1. Core Tracker | COMPLETE | SQLite, DDC+Algolia scrapers, dashboard, quality scores, comparison |
 | 2. Multi-Source Pipeline | COMPLETE | Listings model split, scraper worker pattern, Cars.com + CarGurus scrapers (built but blocked by bot protection in CI), GitHub Actions cron every 6h with R2 persistence |
 | 3. Dealer Intelligence | NOT STARTED | Price trend analysis, negotiation room estimator, dealer scoring. Requires 2-3 months of price_history data (accumulating since 2026-03-12) |
-| 4. Scale to 400+ Dealers | NOT STARTED | Platform auto-detection agent, dealer config in DB, batch onboarding |
+| 4. Scale to 400+ Dealers | IN PROGRESS | Multi-make expansion started (7 makes, 12 dealers). Remaining: platform auto-detection agent, dealer config in DB, batch onboarding |
 | 5. Infrastructure | PARTIALLY STARTED | GitHub Actions cron + R2 done. Remaining: BullMQ job queue, Redis caching, rate limiting, Turso migration |
 | 6. Smart Alerts | NOT STARTED | Price drop notifications, new inventory alerts |
 | 7. Public Product | NOT STARTED | Auth, hosted DB, embedded chat (optional) |
@@ -191,10 +199,12 @@ Short imperative subject line. Group related changes (e.g., "Add Cars.com scrape
 _Revisit these as the project evolves. Not blocking current work._
 
 ### Scraper Coverage
+- ~~**Expand beyond BMW**~~ — DONE (Session 29). 7 makes, 12 dealers. Architecture was already multi-make ready; only config changes needed.
+- **Lexus Stevens Creek** — DDC confirmed but scrape returned 0 vehicles. Search URL path may differ from `/new-inventory/index.htm`. Needs manual investigation.
+- **More Bay Area dealers** — Audi, Porsche, Mercedes SF not yet added. Many dealer sites block automated WebFetch (403/SSL errors). Need manual Chrome DevTools inspection to find URLs and confirm platform.
 - **Cars.com** — scraper built (`lib/scrapers/carscom.ts`) but Cars.com hard-blocks GitHub Actions IPs (90s timeout, not a solvable Cloudflare challenge). Works locally. Options: residential proxy ($5-15/mo), self-hosted runner, or accept limitation.
 - **CarGurus** — scraper built (`lib/scrapers/cargurus.ts`) but DataDome CAPTCHA blocks headless browsers in CI (returns 403 + captcha-delivery.com). Disabled in registry. Would need `playwright-extra` stealth plugin or residential proxy.
 - **East Bay BMW** (Pleasanton) — Akamai bot manager blocks all automated access. Would need stealth plugin or residential proxy.
-- **Expand beyond BMW** — scrapers are BMW-focused; multi-make support is architecturally ready (make field exists) but no non-BMW dealers configured.
 
 ### Infrastructure
 - **GitHub Actions Node.js 20 deprecation** — actions/checkout@v4, actions/setup-node@v4, actions/upload-artifact@v4 will be forced to Node.js 24 starting June 2, 2026. Update action versions before then.
@@ -219,11 +229,13 @@ _Revisit these as the project evolves. Not blocking current work._
 
 ## Current State
 
-_Last updated: 2026-03-16 (Session 28)_
+_Last updated: 2026-03-17 (Session 29)_
 
 - **Branch:** main
-- **Automated scraping:** GitHub Actions cron every 6h, SQLite DB persisted to Cloudflare R2. Working scrapers: DDC (3 dealers), Algolia (2 dealers). ~1,800 vehicles per run. 44 scrapes since 2026-03-12.
-- **DB:** 1,863 vehicles, 2,005 listings across 5 dealers. 1,859 price history records. 1 remaining $0 listing (will auto-fix on next scrape).
+- **Automated scraping:** GitHub Actions cron every 6h, SQLite DB persisted to Cloudflare R2. Working scrapers: DDC (10 dealers), Algolia (2 dealers). ~3,500 vehicles per run. ~8 min per CI run.
+- **Multi-make expansion:** 7 makes across 12 dealers (BMW, Mercedes-Benz, Land Rover, Jaguar, MINI, Volvo, Cadillac). Added Session 29. Price history accumulating for all makes since 2026-03-17.
+- **DB:** ~3,476 vehicles across 12 dealers, 7 makes. Local DB syncs from R2 via `./scripts/sync-db.sh`.
+- **Filter UI:** Chip + popover pattern with multi-select for Model, Dealer, Color, Condition. Replaced native dropdowns. Added Session 29.
 - **Tests:** 155 tests via vitest (scoring: 47, DDC parser: 60, Algolia parser: 48). CI workflow `.github/workflows/test.yml` runs on push/PR.
 - **MCP server:** Registered and validated. 6 tools working.
 - **DDC parser:** Checks 6 price fields with `parsePrice()` helper. Upsert guards against $0 price overwrites.
