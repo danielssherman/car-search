@@ -222,7 +222,7 @@ _Revisit these as the project evolves. Not blocking current work._
 ### Data Quality
 - ~~**$0 price bug**~~ — FIXED (Session 28). DDC API intermittently returns empty pricing. Parser now checks 6 price fields. Upsert guards against $0 overwrites. 15 listings backfilled.
 - **1 remaining $0 vehicle** — `3MW23CM06R8E69881` (2024 230i at Stevens Creek) never had a valid price. Will resolve on next scrape with improved parser.
-- **SCRAPE_API_KEY is weak** — "bmw-tracker-secret-key-2024" should be rotated to a random string.
+- ~~**SCRAPE_API_KEY is weak**~~ — FIXED (Session 30). Rotated to random 64-char hex. Startup guard rejects old default values.
 - **Algolia API key in git history** — should be rotated with provider.
 
 ---
