@@ -226,7 +226,11 @@ export function getVehicles(filters: InventoryFilters): Vehicle[] {
     params.push(filters.make);
   }
 
-  if (filters.model && filters.model !== "all") {
+  if (filters.models && filters.models.length > 0) {
+    const placeholders = filters.models.map(() => "?").join(", ");
+    conditions.push(`v.model IN (${placeholders})`);
+    params.push(...filters.models);
+  } else if (filters.model && filters.model !== "all") {
     conditions.push("v.model = ?");
     params.push(filters.model);
   }

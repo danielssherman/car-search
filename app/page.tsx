@@ -3,12 +3,13 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense } from "react";
-import type { Vehicle, InventoryStats, DealerInfo } from "@/lib/types";
+import type { Vehicle, InventoryFilters, InventoryStats, DealerInfo } from "@/lib/types";
 import { triggerScrape } from "./actions";
 import { StatsBar } from "@/components/StatsBar";
 import { FilterBar } from "@/components/FilterBar";
 import { InventoryTable } from "@/components/InventoryTable";
 import { ComparePanel } from "@/components/ComparePanel";
+import { AISearchBanner, AISearchLoadingSkeleton } from "@/components/AISearchBanner";
 import { RefreshCw, GitCompare } from "lucide-react";
 
 function formatTime(iso: string | null): string {
@@ -57,6 +58,13 @@ function DashboardContent() {
   const [selectedVins, setSelectedVins] = useState<Set<string>>(new Set());
   const [showCompare, setShowCompare] = useState(false);
 
+  // AI search state
+  const [aiSearchActive, setAiSearchActive] = useState(false);
+  const [aiSearchLoading, setAiSearchLoading] = useState(false);
+  const [aiExplanation, setAiExplanation] = useState<string | null>(null);
+  const [aiQuery, setAiQuery] = useState<string | null>(null);
+  const [aiFilters, setAiFilters] = useState<InventoryFilters | null>(null);
+
   const [filters, setFilters] = useState({
     make: searchParams.get("make") || "all",
     model: searchParams.get("model") || "all",
@@ -69,19 +77,33 @@ function DashboardContent() {
     search: searchParams.get("search") || "",
   });
 
+  // Initialize AI search from URL param
+  useEffect(() => {
+    const aiQueryParam = searchParams.get("aiQuery");
+    if (aiQueryParam) {
+      setAiSearchActive(true);
+      handleAiSearch(aiQueryParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updateUrl = useCallback(
-    (newFilters: typeof filters) => {
+    (newFilters: typeof filters, aiQueryParam?: string | null) => {
       const params = new URLSearchParams();
-      if (newFilters.make !== "all") params.set("make", newFilters.make);
-      if (newFilters.model !== "all") params.set("model", newFilters.model);
-      if (newFilters.dealer) params.set("dealer", newFilters.dealer);
-      if (newFilters.color) params.set("color", newFilters.color);
-      if (newFilters.status !== "all") params.set("status", newFilters.status);
-      if (newFilters.minPrice) params.set("minPrice", newFilters.minPrice);
-      if (newFilters.maxPrice) params.set("maxPrice", newFilters.maxPrice);
-      if (newFilters.sort !== "best_value")
-        params.set("sort", newFilters.sort);
-      if (newFilters.search) params.set("search", newFilters.search);
+      if (aiQueryParam) {
+        params.set("aiQuery", aiQueryParam);
+      } else {
+        if (newFilters.make !== "all") params.set("make", newFilters.make);
+        if (newFilters.model !== "all") params.set("model", newFilters.model);
+        if (newFilters.dealer) params.set("dealer", newFilters.dealer);
+        if (newFilters.color) params.set("color", newFilters.color);
+        if (newFilters.status !== "all") params.set("status", newFilters.status);
+        if (newFilters.minPrice) params.set("minPrice", newFilters.minPrice);
+        if (newFilters.maxPrice) params.set("maxPrice", newFilters.maxPrice);
+        if (newFilters.sort !== "best_value")
+          params.set("sort", newFilters.sort);
+        if (newFilters.search) params.set("search", newFilters.search);
+      }
 
       const qs = params.toString();
       router.replace(qs ? `?${qs}` : "/", { scroll: false });
@@ -91,6 +113,13 @@ function DashboardContent() {
 
   const handleFilterChange = useCallback(
     (key: string, value: string) => {
+      // If AI results are showing and user changes a filter, dismiss AI mode
+      if (aiExplanation) {
+        setAiExplanation(null);
+        setAiQuery(null);
+        setAiFilters(null);
+      }
+
       const newFilters = { ...filters, [key]: value };
       // Reset model when make changes
       if (key === "make") {
@@ -99,7 +128,7 @@ function DashboardContent() {
       setFilters(newFilters);
       updateUrl(newFilters);
     },
-    [filters, updateUrl]
+    [filters, updateUrl, aiExplanation]
   );
 
   const handleClearFilters = useCallback(() => {
@@ -115,6 +144,9 @@ function DashboardContent() {
       search: "",
     };
     setFilters(cleared);
+    setAiExplanation(null);
+    setAiQuery(null);
+    setAiFilters(null);
     updateUrl(cleared);
   }, [updateUrl]);
 
@@ -166,8 +198,73 @@ function DashboardContent() {
   }, [filters]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    // Don't fetch with regular filters if AI results are showing
+    if (!aiExplanation) {
+      fetchData();
+    }
+  }, [fetchData, aiExplanation]);
+
+  // Fetch stats/dealers on mount (needed even during AI search for dropdowns)
+  useEffect(() => {
+    async function fetchMeta() {
+      try {
+        const [statsRes, dealersRes] = await Promise.all([
+          fetch("/api/stats"),
+          fetch("/api/dealers"),
+        ]);
+        setStats(await statsRes.json());
+        setDealers((await dealersRes.json()).dealers || []);
+      } catch (err) {
+        console.error("Failed to fetch metadata:", err);
+      }
+    }
+    if (aiExplanation && !stats) {
+      fetchMeta();
+    }
+  }, [aiExplanation, stats]);
+
+  const handleAiSearch = async (query: string) => {
+    setAiSearchLoading(true);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/ai-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "AI search failed");
+      }
+
+      const data = await res.json();
+      setVehicles(data.vehicles || []);
+      setAiExplanation(data.explanation);
+      setAiQuery(query);
+      setAiFilters(data.filters);
+      updateUrl(filters, query);
+
+      if (data.fallback) {
+        setToast("AI search unavailable — showing text search results");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "AI search failed";
+      setToast(message);
+      // Don't clear AI mode on error — let user retry
+    } finally {
+      setAiSearchLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const handleDismissAi = useCallback(() => {
+    setAiExplanation(null);
+    setAiQuery(null);
+    setAiFilters(null);
+    setAiSearchActive(false);
+    updateUrl(filters);
+  }, [filters, updateUrl]);
 
   const handleScrape = async () => {
     setScraping(true);
@@ -254,7 +351,7 @@ function DashboardContent() {
 
       {/* Stats */}
       <div className="mx-auto max-w-7xl px-4 py-4 md:px-6">
-        <StatsBar stats={stats} loading={loading} />
+        <StatsBar stats={stats} loading={loading && !aiExplanation} />
       </div>
 
       {/* Filters */}
@@ -267,7 +364,33 @@ function DashboardContent() {
         makes={stats?.makes || []}
         models={stats?.models || []}
         activeFilterCount={activeFilterCount}
+        aiSearchActive={aiSearchActive}
+        onToggleAiSearch={() => {
+          setAiSearchActive(!aiSearchActive);
+          if (aiExplanation) {
+            handleDismissAi();
+          }
+        }}
+        onAiSearchSubmit={handleAiSearch}
+        aiSearchLoading={aiSearchLoading}
       />
+
+      {/* AI Search Banner */}
+      {aiSearchLoading && (
+        <div className="pt-3">
+          <AISearchLoadingSkeleton />
+        </div>
+      )}
+      {!aiSearchLoading && aiExplanation && aiQuery && aiFilters && (
+        <div className="pt-3">
+          <AISearchBanner
+            query={aiQuery}
+            explanation={aiExplanation}
+            filters={aiFilters}
+            onDismiss={handleDismissAi}
+          />
+        </div>
+      )}
 
       {/* Results count */}
       <div className="mx-auto max-w-7xl px-4 py-3 md:px-6">

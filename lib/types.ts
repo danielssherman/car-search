@@ -71,6 +71,7 @@ export interface ScrapeLog {
 export interface InventoryFilters {
   make?: string;
   model?: string;
+  models?: string[]; // multi-model filter for AI search (e.g., ["X5", "X7", "X3"])
   dealer?: string;
   color?: string;
   condition?: string;
@@ -80,6 +81,13 @@ export interface InventoryFilters {
   sort?: string;
   search?: string;
   limit?: number;
+}
+
+export interface AISearchResponse {
+  filters: InventoryFilters;
+  vehicles: Vehicle[];
+  explanation: string;
+  query: string;
 }
 
 export interface InventoryStats {
