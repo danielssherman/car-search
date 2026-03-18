@@ -6,6 +6,12 @@ export type SortOrder = z.infer<typeof SortEnum>;
 
 export const StatusEnum = z.enum(["in_stock", "in_transit", "all"]);
 
+// Coerce non-empty strings to int, treat "" as undefined (URL params send "" for bare ?minPrice=)
+const optionalIntParam = z.preprocess(
+  (val) => (val === "" || val === undefined ? undefined : val),
+  z.coerce.number().int().min(0).optional()
+);
+
 export const InventoryQuerySchema = z.object({
   make: z.string().optional(),
   model: z.string().optional(),
@@ -16,8 +22,8 @@ export const InventoryQuerySchema = z.object({
   colors: z.string().optional(),
   condition: z.string().optional(),
   conditions: z.string().optional(),
-  minPrice: z.coerce.number().int().min(0).optional(),
-  maxPrice: z.coerce.number().int().min(0).optional(),
+  minPrice: optionalIntParam,
+  maxPrice: optionalIntParam,
   status: StatusEnum.optional(),
   sort: SortEnum.optional(),
   search: z.string().max(200).optional(),

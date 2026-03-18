@@ -42,6 +42,19 @@ describe("InventoryQuerySchema", () => {
     }
   });
 
+  it("treats empty string minPrice as undefined (bare ?minPrice= in URL)", () => {
+    const result = InventoryQuerySchema.safeParse({ minPrice: "" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.minPrice).toBeUndefined();
+    }
+  });
+
+  it("rejects non-numeric minPrice", () => {
+    const result = InventoryQuerySchema.safeParse({ minPrice: "abc" });
+    expect(result.success).toBe(false);
+  });
+
   it("rejects negative minPrice", () => {
     const result = InventoryQuerySchema.safeParse({ minPrice: "-1" });
     expect(result.success).toBe(false);
