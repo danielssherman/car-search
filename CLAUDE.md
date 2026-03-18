@@ -188,7 +188,7 @@ Short imperative subject line. Group related changes (e.g., "Add Cars.com scrape
 - ~~No automated test suite~~ — DONE (Session 28). 155 tests via vitest: scoring (47), DDC parser (60), Algolia parser (48). CI workflow at `.github/workflows/test.yml`.
 - MCP server registered in `~/.claude.json` (project: `/Users/dsherman`) and `.mcp.json` (project root). Validated and working.
 - The 3-branch parallel instance experiment (Session 19) didn't work as designed — instances all committed to working directory instead of separate branches. Avoid this pattern; use sequential sessions instead.
-- **N+1 query in `getVehicles()`** — correlated subquery for best listing + listing_count runs per row. Works at 1,800 vehicles but will degrade at scale. Fix planned for Session 29.
+- ~~**N+1 query in `getVehicles()`**~~ — FIXED (Session 30). Replaced correlated subqueries with CTEs using ROW_NUMBER()/LAG() window functions. Added composite indexes.
 - **Price/MSRP conflation** — `upsertVehicles` uses `const price = v.msrp` (line 458). Scrapers report asking price in the msrp field. No way to distinguish MSRP from asking price yet.
 - **`first_seen` stale on re-listing** — if a vehicle is removed then reappears, `first_seen` retains original date, inflating days-on-lot in quality score.
 
@@ -212,7 +212,7 @@ _Revisit these as the project evolves. Not blocking current work._
 - **Self-hosted runner** — would unblock Cars.com + CarGurus scrapers and reduce CI costs. Could run on a cheap VPS or home machine.
 
 ### Product
-- ~~**Test coverage**~~ — DONE (Session 28). 155 tests, CI workflow running.
+- ~~**Test coverage**~~ — DONE (Session 28, expanded Session 30). 228 tests: scoring (47), DDC parser (60), Algolia parser (48), db queries (38), validation (35). CI workflow running.
 - ~~**Register MCP server**~~ — DONE. Registered and validated.
 - ~~**Vehicle detail panel**~~ — DONE (Session 29). Click row → slide-over panel with specs, packages, all listings.
 - ~~**Pagination**~~ — DONE (Session 29). 50 per page, prev/next, `countVehicles()` + `buildFilterConditions()` helper.
@@ -229,25 +229,21 @@ _Revisit these as the project evolves. Not blocking current work._
 
 ## Current State
 
-_Last updated: 2026-03-17 (Session 29)_
+_Last updated: 2026-03-18 (Session 30)_
 
 - **Branch:** main
 - **Automated scraping:** GitHub Actions cron every 6h, SQLite DB persisted to Cloudflare R2. Working scrapers: DDC (10 dealers), Algolia (2 dealers). ~3,500 vehicles per run. ~8 min per CI run.
 - **Multi-make expansion:** 7 makes across 12 dealers (BMW, Mercedes-Benz, Land Rover, Jaguar, MINI, Volvo, Cadillac). Price history accumulating for all makes since 2026-03-17.
-- **DB:** ~3,476 vehicles across 12 dealers, 7 makes. Local DB syncs from R2 via `./scripts/sync-db.sh`.
-- **Filter UI:** Chip + popover pattern with multi-select for Model, Dealer, Color, Condition. Replaced native dropdowns.
-- **Vehicle detail panel:** Click any table row → slide-over panel with full specs, packages, all listings, external link. Fetches `/api/inventory/[vin]`.
-- **Pagination:** 50 vehicles per page with prev/next controls. API returns `{ vehicles, total, page, pageSize, totalPages }`. `countVehicles()` reuses `buildFilterConditions()` helper.
-- **Tests:** 155 tests via vitest (scoring: 47, DDC parser: 60, Algolia parser: 48). CI workflow `.github/workflows/test.yml` runs on push/PR.
+- **DB:** ~3,476 vehicles across 12 dealers, 7 makes. Local DB syncs from R2 via `./scripts/sync-db.sh`. Queries use CTEs with ROW_NUMBER()/LAG() window functions (no more N+1). Composite indexes on listings and price_history.
+- **API hardening:** Zod input validation on all routes. New endpoints: `/api/price-history/[vin]`, `/api/scrape-health`. SCRAPE_API_KEY rotated with startup guard. Price history dedup in upsertVehicles().
+- **Tests:** 228 tests via vitest (scoring: 47, DDC parser: 60, Algolia parser: 48, db queries: 38, validation: 35). CI workflow `.github/workflows/test.yml` runs on push/PR.
 - **MCP server:** Registered and validated. 6 tools working.
 - **Known schema issue:** `scrape_log` uses `started_at`/`completed_at`, not `created_at` — session protocol DB check query needs updating.
 
 ### Next Sessions (planned)
 
-See full plan: `.claude/plans/humming-floating-elephant.md`
-
 1. ~~**Session 28: Vehicle detail panel + pagination**~~ — DONE.
-2. **Session 29: Database performance** — Rewrite N+1 query with CTEs, add missing indexes, price history dedup, consolidate stats queries. More urgent now at 3,500 vehicles.
-3. **Session 30: API hardening** — Input validation, response envelopes, new `/api/price-history/[vin]` and `/api/scrape-health` endpoints.
+2. ~~**Session 29: Database performance**~~ — DONE (Session 30). CTE rewrites, composite indexes, stats consolidation, price history dedup.
+3. ~~**Session 30: API hardening**~~ — DONE. Zod validation, SCRAPE_API_KEY rotation, new endpoints.
 4. **Session 31: Price history UI** — Timeline in detail panel, price stability badges, scrape health dashboard.
 5. **Session 32: Comparison redesign + MCP enrichment** — Full-screen comparison overlay, packages visibility, `get_price_history` MCP tool.
