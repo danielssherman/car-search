@@ -750,42 +750,52 @@ export function markMissingAsRemoved(scrapedVehicles: ScrapedVehicle[]): void {
   const db = getDb();
   const now = new Date().toISOString();
 
-  const currentVins = new Set(scrapedVehicles.map((v) => v.vin));
+  // Determine which dealers we actually scraped successfully
+  const scrapedDealers = new Set(scrapedVehicles.map((v) => v.dealer_name));
+  if (scrapedDealers.size === 0) return; // Nothing scraped, don't remove anything
+
   const seenListingKeys = new Set(
     scrapedVehicles.map((v) => `${v.vin}|${v.source}|${v.dealer_name}`)
   );
 
-  // Mark vehicles as removed if VIN not found in any source
-  const allActiveVehicles = db
-    .prepare("SELECT vin FROM vehicles WHERE removed_at IS NULL")
-    .all() as { vin: string }[];
-
-  const markVehicleRemoved = db.prepare(
-    "UPDATE vehicles SET removed_at = ? WHERE vin = ?"
-  );
-
-  // Mark listings as removed if not seen in this scrape
-  const allActiveListings = db
+  // Only check listings for dealers we successfully scraped
+  const dealerPlaceholders = [...scrapedDealers].map(() => "?").join(", ");
+  const activeListings = db
     .prepare(
-      "SELECT id, vin, source, dealer_name FROM listings WHERE removed_at IS NULL"
+      `SELECT id, vin, source, dealer_name FROM listings
+       WHERE removed_at IS NULL AND dealer_name IN (${dealerPlaceholders})`
     )
-    .all() as { id: number; vin: string; source: string; dealer_name: string }[];
+    .all(...scrapedDealers) as { id: number; vin: string; source: string; dealer_name: string }[];
 
   const markListingRemoved = db.prepare(
     "UPDATE listings SET removed_at = ? WHERE id = ?"
   );
 
-  const transaction = db.transaction(() => {
-    for (const row of allActiveVehicles) {
-      if (!currentVins.has(row.vin)) {
-        markVehicleRemoved.run(now, row.vin);
-      }
-    }
+  // For vehicles: mark as removed only if the vehicle has NO active listings
+  // remaining after we process the listing removals
+  const markVehicleRemoved = db.prepare(
+    "UPDATE vehicles SET removed_at = ? WHERE vin = ?"
+  );
 
-    for (const listing of allActiveListings) {
+  const transaction = db.transaction(() => {
+    // 1. Mark listings as removed if they belong to a scraped dealer but weren't seen
+    const affectedVins = new Set<string>();
+    for (const listing of activeListings) {
       const key = `${listing.vin}|${listing.source}|${listing.dealer_name}`;
       if (!seenListingKeys.has(key)) {
         markListingRemoved.run(now, listing.id);
+        affectedVins.add(listing.vin);
+      }
+    }
+
+    // 2. For each affected VIN, check if it has ANY remaining active listings
+    //    If not, mark the vehicle itself as removed
+    for (const vin of affectedVins) {
+      const remaining = db.prepare(
+        "SELECT COUNT(*) as cnt FROM listings WHERE vin = ? AND removed_at IS NULL"
+      ).get(vin) as { cnt: number };
+      if (remaining.cnt === 0) {
+        markVehicleRemoved.run(now, vin);
       }
     }
   });

@@ -21,6 +21,7 @@ let getPriceDrops: typeof import("@/lib/db").getPriceDrops;
 let getNewVehicles: typeof import("@/lib/db").getNewVehicles;
 let getDealers: typeof import("@/lib/db").getDealers;
 let getPriceHistory: typeof import("@/lib/db").getPriceHistory;
+let markMissingAsRemoved: typeof import("@/lib/db").markMissingAsRemoved;
 
 import type { ScrapedVehicle } from "@/lib/types";
 
@@ -71,6 +72,7 @@ beforeEach(async () => {
   getNewVehicles = dbModule.getNewVehicles;
   getDealers = dbModule.getDealers;
   getPriceHistory = dbModule.getPriceHistory;
+  markMissingAsRemoved = dbModule.markMissingAsRemoved;
 
   _resetDb();
 });
@@ -583,5 +585,207 @@ describe("composite indexes", () => {
       .all() as { name: string }[];
     const names = indexes.map((i) => i.name);
     expect(names).toContain("idx_price_history_lookup");
+  });
+});
+
+describe("markMissingAsRemoved", () => {
+  it("does not remove listings for unscraped dealers", () => {
+    // Insert vehicles at two different dealers
+    const dealerAVehicle = makeScrapedVehicle({
+      vin: "VIN_DA1",
+      dealer_name: "Dealer A",
+      source: "dealer",
+    });
+    const dealerBVehicle = makeScrapedVehicle({
+      vin: "VIN_DB1",
+      dealer_name: "Dealer B",
+      source: "dealer",
+    });
+    upsertVehicles([dealerAVehicle, dealerBVehicle]);
+
+    // Scrape returns only Dealer A vehicles — Dealer B timed out
+    markMissingAsRemoved([dealerAVehicle]);
+
+    // Dealer B's listing should NOT be removed
+    const db = getDb();
+    const dealerBListing = db
+      .prepare("SELECT removed_at FROM listings WHERE vin = ? AND dealer_name = ?")
+      .get("VIN_DB1", "Dealer B") as { removed_at: string | null };
+    expect(dealerBListing.removed_at).toBeNull();
+
+    // Dealer B's vehicle should NOT be removed
+    const dealerBVehicleRow = db
+      .prepare("SELECT removed_at FROM vehicles WHERE vin = ?")
+      .get("VIN_DB1") as { removed_at: string | null };
+    expect(dealerBVehicleRow.removed_at).toBeNull();
+
+    // Dealer A's listing should still be active (it was seen)
+    const dealerAListing = db
+      .prepare("SELECT removed_at FROM listings WHERE vin = ? AND dealer_name = ?")
+      .get("VIN_DA1", "Dealer A") as { removed_at: string | null };
+    expect(dealerAListing.removed_at).toBeNull();
+  });
+
+  it("removes listings for scraped dealers when vehicle not seen", () => {
+    // Insert vehicles at Dealer A and Dealer B
+    const dealerAVehicle1 = makeScrapedVehicle({
+      vin: "VIN_DA1",
+      dealer_name: "Dealer A",
+      source: "dealer",
+    });
+    const dealerAVehicle2 = makeScrapedVehicle({
+      vin: "VIN_DA2",
+      dealer_name: "Dealer A",
+      source: "dealer",
+    });
+    const dealerBVehicle = makeScrapedVehicle({
+      vin: "VIN_DB1",
+      dealer_name: "Dealer B",
+      source: "dealer",
+    });
+    upsertVehicles([dealerAVehicle1, dealerAVehicle2, dealerBVehicle]);
+
+    // Scrape returns only VIN_DA1 from Dealer A — VIN_DA2 is gone from Dealer A
+    markMissingAsRemoved([dealerAVehicle1]);
+
+    const db = getDb();
+
+    // VIN_DA1 listing should still be active (it was seen)
+    const da1Listing = db
+      .prepare("SELECT removed_at FROM listings WHERE vin = ? AND dealer_name = ?")
+      .get("VIN_DA1", "Dealer A") as { removed_at: string | null };
+    expect(da1Listing.removed_at).toBeNull();
+
+    // VIN_DA2 listing at Dealer A should be removed (dealer was scraped, vehicle not seen)
+    const da2Listing = db
+      .prepare("SELECT removed_at FROM listings WHERE vin = ? AND dealer_name = ?")
+      .get("VIN_DA2", "Dealer A") as { removed_at: string | null };
+    expect(da2Listing.removed_at).not.toBeNull();
+
+    // Dealer B's listing should be untouched (dealer was not scraped)
+    const dbListing = db
+      .prepare("SELECT removed_at FROM listings WHERE vin = ? AND dealer_name = ?")
+      .get("VIN_DB1", "Dealer B") as { removed_at: string | null };
+    expect(dbListing.removed_at).toBeNull();
+  });
+
+  it("marks vehicle removed when all listings removed", () => {
+    // Vehicle listed at two dealers
+    const listingA = makeScrapedVehicle({
+      vin: "VIN_BOTH",
+      dealer_name: "Dealer A",
+      source: "dealer",
+    });
+    const listingB = makeScrapedVehicle({
+      vin: "VIN_BOTH",
+      dealer_name: "Dealer B",
+      source: "dealer",
+    });
+    upsertVehicles([listingA, listingB]);
+
+    // Both dealers scraped successfully, but VIN_BOTH not seen at either
+    // We need to include at least one vehicle per dealer so scrapedDealers includes both
+    const otherA = makeScrapedVehicle({
+      vin: "VIN_OTHER_A",
+      dealer_name: "Dealer A",
+      source: "dealer",
+    });
+    const otherB = makeScrapedVehicle({
+      vin: "VIN_OTHER_B",
+      dealer_name: "Dealer B",
+      source: "dealer",
+    });
+    upsertVehicles([otherA, otherB]);
+
+    markMissingAsRemoved([otherA, otherB]);
+
+    const db = getDb();
+
+    // Both listings should be removed
+    const listingARow = db
+      .prepare("SELECT removed_at FROM listings WHERE vin = ? AND dealer_name = ?")
+      .get("VIN_BOTH", "Dealer A") as { removed_at: string | null };
+    expect(listingARow.removed_at).not.toBeNull();
+
+    const listingBRow = db
+      .prepare("SELECT removed_at FROM listings WHERE vin = ? AND dealer_name = ?")
+      .get("VIN_BOTH", "Dealer B") as { removed_at: string | null };
+    expect(listingBRow.removed_at).not.toBeNull();
+
+    // Vehicle itself should be removed (no active listings remain)
+    const vehicleRow = db
+      .prepare("SELECT removed_at FROM vehicles WHERE vin = ?")
+      .get("VIN_BOTH") as { removed_at: string | null };
+    expect(vehicleRow.removed_at).not.toBeNull();
+  });
+
+  it("does not mark vehicle removed when it still has active listing at unscraped dealer", () => {
+    // Vehicle listed at Dealer A and Dealer B
+    const listingA = makeScrapedVehicle({
+      vin: "VIN_PARTIAL",
+      dealer_name: "Dealer A",
+      source: "dealer",
+    });
+    const listingB = makeScrapedVehicle({
+      vin: "VIN_PARTIAL",
+      dealer_name: "Dealer B",
+      source: "dealer",
+    });
+    upsertVehicles([listingA, listingB]);
+
+    // Only Dealer A scraped (need another vehicle so Dealer A is in scrapedDealers)
+    const otherA = makeScrapedVehicle({
+      vin: "VIN_KEPT_A",
+      dealer_name: "Dealer A",
+      source: "dealer",
+    });
+    upsertVehicles([otherA]);
+
+    // VIN_PARTIAL not seen at Dealer A, Dealer B not scraped at all
+    markMissingAsRemoved([otherA]);
+
+    const db = getDb();
+
+    // Dealer A listing should be removed (dealer scraped, vehicle not seen)
+    const listingARow = db
+      .prepare("SELECT removed_at FROM listings WHERE vin = ? AND dealer_name = ?")
+      .get("VIN_PARTIAL", "Dealer A") as { removed_at: string | null };
+    expect(listingARow.removed_at).not.toBeNull();
+
+    // Dealer B listing should still be active (dealer not scraped)
+    const listingBRow = db
+      .prepare("SELECT removed_at FROM listings WHERE vin = ? AND dealer_name = ?")
+      .get("VIN_PARTIAL", "Dealer B") as { removed_at: string | null };
+    expect(listingBRow.removed_at).toBeNull();
+
+    // Vehicle should NOT be removed (still has active listing at Dealer B)
+    const vehicleRow = db
+      .prepare("SELECT removed_at FROM vehicles WHERE vin = ?")
+      .get("VIN_PARTIAL") as { removed_at: string | null };
+    expect(vehicleRow.removed_at).toBeNull();
+  });
+
+  it("empty scrape results removes nothing", () => {
+    // Insert some vehicles
+    const v1 = makeScrapedVehicle({ vin: "VIN_SAFE1", dealer_name: "Dealer A" });
+    const v2 = makeScrapedVehicle({ vin: "VIN_SAFE2", dealer_name: "Dealer B" });
+    upsertVehicles([v1, v2]);
+
+    // Call with empty array (total scrape failure)
+    markMissingAsRemoved([]);
+
+    const db = getDb();
+
+    // All listings should still be active
+    const activeListings = db
+      .prepare("SELECT COUNT(*) as cnt FROM listings WHERE removed_at IS NULL")
+      .get() as { cnt: number };
+    expect(activeListings.cnt).toBe(2);
+
+    // All vehicles should still be active
+    const activeVehicles = db
+      .prepare("SELECT COUNT(*) as cnt FROM vehicles WHERE removed_at IS NULL")
+      .get() as { cnt: number };
+    expect(activeVehicles.cnt).toBe(2);
   });
 });

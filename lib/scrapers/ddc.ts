@@ -348,6 +348,28 @@ async function scrapeDealer(
   return Array.from(vehicleMap.values());
 }
 
+/**
+ * Run async tasks with a concurrency limit using a worker-pool pattern.
+ * Each worker pulls from a shared queue until empty.
+ */
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (queue.length > 0) {
+      const item = queue.shift()!;
+      await fn(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
+/** Max number of dealers to scrape in parallel. Each gets its own browser context. */
+const DDC_CONCURRENCY = 3;
+
 const ddcScraper: ScraperModule = {
   name: "dealer_ddc",
 
@@ -365,10 +387,14 @@ const ddcScraper: ScraperModule = {
         ],
       });
 
-      for (const dealer of DDC_DEALERS) {
+      const browserRef = browser;
+
+      console.log(`[DDC] Scraping ${DDC_DEALERS.length} dealers with concurrency ${DDC_CONCURRENCY}...`);
+
+      await runWithConcurrency(DDC_DEALERS, DDC_CONCURRENCY, async (dealer) => {
         console.log(`[DDC] Scraping ${dealer.name}...`);
         try {
-          const vehicles = await scrapeDealer(browser, dealer);
+          const vehicles = await scrapeDealer(browserRef, dealer);
           console.log(`[DDC] ${dealer.name}: ${vehicles.length} vehicles`);
           for (const v of vehicles) {
             allVehicles.set(v.vin, v);
@@ -377,7 +403,7 @@ const ddcScraper: ScraperModule = {
           console.error(`[DDC] ${dealer.name} failed: ${(err as Error).message}`);
         }
         await randomDelay(2000, 4000);
-      }
+      });
     } finally {
       if (browser) await browser.close();
     }

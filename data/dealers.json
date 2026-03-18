@@ -1,0 +1,16 @@
+[
+  { "name": "Stevens Creek BMW", "city": "San Jose", "make": "BMW", "website": "https://www.stevenscreekbmw.com", "platform": "ddc", "status": "active" },
+  { "name": "BMW of Mountain View", "city": "Mountain View", "make": "BMW", "website": "https://www.bmwofmountainview.com", "platform": "ddc", "status": "active" },
+  { "name": "BMW of Fremont", "city": "Fremont", "make": "BMW", "website": "https://www.bmwoffremont.com", "platform": "ddc", "status": "active" },
+  { "name": "BMW of San Rafael", "city": "San Rafael", "make": "BMW", "website": "https://www.bmwofsanrafael.com", "platform": "ddc", "status": "active" },
+  { "name": "Peter Pan BMW", "city": "San Mateo", "make": "BMW", "website": "https://www.peterpanbmw.com", "platform": "algolia", "status": "active" },
+  { "name": "BMW of San Francisco", "city": "San Francisco", "make": "BMW", "website": "https://www.bmwsf.com", "platform": "algolia", "status": "active" },
+  { "name": "Mercedes-Benz of Stevens Creek", "city": "San Jose", "make": "Mercedes-Benz", "website": "https://www.stevenscreekmercedes.com", "platform": "ddc", "status": "active" },
+  { "name": "Volvo Cars Walnut Creek", "city": "Walnut Creek", "make": "Volvo", "website": "https://www.volvocarswalnutcreek.com", "platform": "ddc", "status": "active" },
+  { "name": "MINI of Stevens Creek", "city": "Santa Clara", "make": "MINI", "website": "https://www.miniofstevenscreek.com", "platform": "ddc", "status": "active" },
+  { "name": "Land Rover Marin", "city": "Corte Madera", "make": "Land Rover", "website": "https://www.landrovermarincounty.com", "platform": "ddc", "status": "active" },
+  { "name": "Jaguar Marin", "city": "Corte Madera", "make": "Jaguar", "website": "https://www.jaguarmarincounty.com", "platform": "ddc", "status": "active" },
+  { "name": "Putnam Cadillac", "city": "Burlingame", "make": "Cadillac", "website": "https://www.putnamcadillac.com", "platform": "ddc", "status": "active" },
+  { "name": "Lexus Stevens Creek", "city": "San Jose", "make": "Lexus", "website": "https://www.stevenscreeklexus.com", "platform": "ddc", "status": "failed", "notes": "DDC confirmed but returns 0 vehicles. Search URL needs investigation." },
+  { "name": "East Bay BMW", "city": "Pleasanton", "make": "BMW", "website": "https://www.eastbaybmw.com", "platform": "blocked", "status": "blocked", "notes": "Akamai bot manager blocks all automated access." }
+]
