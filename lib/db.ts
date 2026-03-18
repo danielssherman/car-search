@@ -776,6 +776,9 @@ export function markMissingAsRemoved(scrapedVehicles: ScrapedVehicle[]): void {
   const markVehicleRemoved = db.prepare(
     "UPDATE vehicles SET removed_at = ? WHERE vin = ?"
   );
+  const countActiveListingsStmt = db.prepare(
+    "SELECT COUNT(*) as cnt FROM listings WHERE vin = ? AND removed_at IS NULL"
+  );
 
   const transaction = db.transaction(() => {
     // 1. Mark listings as removed if they belong to a scraped dealer but weren't seen
@@ -791,9 +794,7 @@ export function markMissingAsRemoved(scrapedVehicles: ScrapedVehicle[]): void {
     // 2. For each affected VIN, check if it has ANY remaining active listings
     //    If not, mark the vehicle itself as removed
     for (const vin of affectedVins) {
-      const remaining = db.prepare(
-        "SELECT COUNT(*) as cnt FROM listings WHERE vin = ? AND removed_at IS NULL"
-      ).get(vin) as { cnt: number };
+      const remaining = countActiveListingsStmt.get(vin) as { cnt: number };
       if (remaining.cnt === 0) {
         markVehicleRemoved.run(now, vin);
       }
