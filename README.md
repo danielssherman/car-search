@@ -1,19 +1,22 @@
 # Bay Area Car Tracker
 
-Track new car inventory across every dealership in the Bay Area. Browse the top deals with a quality-scored, filterable dashboard and side-by-side comparison tool.
+Track new and used car inventory across Bay Area dealerships. Browse top deals with a quality-scored, filterable dashboard, side-by-side comparison, and AI-powered natural language search.
 
-**Goal:** Build a complete, always-current view of every car on every lot in the Bay Area — starting with BMW dealerships and expanding to all makes and brands.
+**3,500+ vehicles across 12 dealers and 7 makes**, scraped every 6 hours via GitHub Actions.
 
 ## Features
 
-- **Multi-make inventory tracking** — generalized data model supports any make, model, and trim
-- **Quality scoring** — each vehicle gets a 0–100 score based on price vs. market average, days on lot, condition, mileage, availability, and features
-- **Top 100 by default** — dashboard surfaces the best-value vehicles first, keeping the UI fast on SQLite even at scale
-- **Automated scraping** from Bay Area dealerships via Playwright (DDC sites) and Algolia Search API
-- **Advanced filtering** by make, model, dealer, color, status, price range, and full-text search
-- **Vehicle comparison** — select up to 3 vehicles for side-by-side detail comparison
-- **Change tracking** — records when vehicles first appear, are last seen, and are removed from inventory
-- **Scheduled scraping** via cron with configurable interval
+- **Multi-make inventory tracking** — BMW, Mercedes-Benz, Land Rover, Jaguar, MINI, Volvo, Cadillac across 12 dealerships
+- **Quality scoring** — 0–100 score based on price vs. market average, days on lot, condition, mileage, availability, and features
+- **Vehicle detail panel** — click any row for full specs, packages, all listings across dealers, and external link
+- **Pagination** — 50 vehicles per page with prev/next navigation
+- **Advanced filtering** — chip + popover multi-select for make, model, dealer, color, condition, status, price range, and full-text search
+- **AI-powered search** — natural language queries ("blue BMW X5 under $60k") converted to filters via Claude Haiku
+- **Vehicle comparison** — select up to 3 vehicles for side-by-side detail comparison with delta highlighting
+- **Price history tracking** — records every price change per VIN/source/dealer for trend analysis
+- **Cross-dealer arbitrage** — surfaces the same VIN listed at multiple dealers at different prices
+- **Automated scraping** — GitHub Actions cron every 6h, SQLite persisted to Cloudflare R2
+- **MCP server** — 10 tools for querying inventory, price history, and scrape health via Claude
 
 ## Quality Score
 
@@ -24,55 +27,45 @@ Every vehicle is scored 0–100 after each scrape:
 | Price vs. market avg | 0–35 | Below-market vehicles score higher |
 | Days on lot | 0–20 | Longer = more negotiating leverage |
 | Condition | 0–15 | New > CPO > Used |
-| Mileage | 0–10 | Lower is better (used/CPO) |
+| Mileage | 0–10 | Lower is better |
 | In-stock status | 0–10 | Available now beats in-transit |
 | Packages/features | 0–10 | More features = better value |
 
-## What Makes This Different
+## Current Dealers (12)
 
-This isn't another listing site. It's a **buyer's intelligence platform**.
-
-- **Cross-dealer price arbitrage** — the same VIN often appears at multiple dealers at different prices. We surface that so you can save thousands without negotiating.
-- **Dealer intelligence** — we track how each dealer prices over time, how often they drop prices, and how long cars sit. This tells you which dealers are most likely to negotiate and when to make your move.
-- **Conversational intelligence** — a custom MCP server makes the entire inventory database queryable via natural language in any Claude session. Agents handle scraper orchestration, deal analysis, dealer discovery, and proactive alerts.
-
-## Roadmap
-
-- [x] **Phase 1** — Generalized data model & quality scoring
-- [ ] **Phase 2** — Multi-source data pipeline (Cars.com, CarGurus scrapers, price history, independent scraper worker pattern)
-- [ ] **Phase 3** — Dealer intelligence engine (dealer scores, markup patterns, negotiation room estimates, deal analysis agent)
-- [ ] **Phase 4** — Dealer discovery & database-driven config for 400+ Bay Area dealers (platform detection agent)
-- [ ] **Phase 5** — Scale & reliability (BullMQ job queue, PostgreSQL, monitoring)
-- [ ] **Phase 6** — Product UI (cross-dealer comparison, dealer profiles, price charts, smart alerts via Gmail MCP, map view)
-- [ ] **Phase 7** — Public launch (SEO, beta, monetization)
-- **Cross-cutting** — Custom MCP server wrapping the database layer, growing with each phase
-
-## Current Dealers (5)
-
-| Dealer | City | Scrape Method |
-|--------|------|---------------|
-| Stevens Creek BMW | San Jose | Playwright (DDC) |
-| BMW of Fremont | Fremont | Playwright (DDC) |
-| BMW of San Rafael | San Rafael | Playwright (DDC) |
-| Peter Pan BMW | San Mateo | Algolia API |
-| BMW of San Francisco | San Francisco | Algolia API |
+| Dealer | City | Make | Scraper |
+|--------|------|------|---------|
+| Stevens Creek BMW | San Jose | BMW | DDC (Playwright) |
+| BMW of Mountain View | Mountain View | BMW | DDC (Playwright) |
+| BMW of Fremont | Fremont | BMW | DDC (Playwright) |
+| BMW of San Rafael | San Rafael | BMW | DDC (Playwright) |
+| Peter Pan BMW | San Mateo | BMW | Algolia API |
+| BMW of San Francisco | San Francisco | BMW | Algolia API |
+| Mercedes-Benz of Stevens Creek | San Jose | Mercedes-Benz | DDC (Playwright) |
+| Volvo Cars Walnut Creek | Walnut Creek | Volvo | DDC (Playwright) |
+| MINI of Stevens Creek | Santa Clara | MINI | DDC (Playwright) |
+| Land Rover Marin | Corte Madera | Land Rover | DDC (Playwright) |
+| Jaguar Marin | Corte Madera | Jaguar | DDC (Playwright) |
+| Putnam Cadillac | Burlingame | Cadillac | DDC (Playwright) |
 
 ## Tech Stack
 
-- **Next.js 14** (App Router) + **React 18** + **TypeScript**
+- **Next.js 14** (App Router) + **React 18** + **TypeScript** (strict)
 - **Tailwind CSS** with dark theme
-- **Playwright** for browser-automated dealership scraping
+- **Playwright** for browser-automated dealership scraping (DDC/DealerOn sites)
 - **Algolia Search API** for Algolia-powered dealer sites
-- **Better SQLite3** for fast local persistence (WAL mode)
-- **Node Cron** for scheduled scrape jobs
-- **MCP (Model Context Protocol)** — custom server for conversational database access + Gmail MCP for alerts
-- **Claude agents** — deal analysis, scraper orchestration, dealer platform detection
+- **Better SQLite3** with WAL mode, CTE-based queries, composite indexes
+- **Zod** for API input validation
+- **Vitest** — 230 tests (scoring, parsers, db queries, validation)
+- **GitHub Actions** — automated scraping every 6h + test CI on push/PR
+- **Cloudflare R2** — SQLite database persistence between CI runs
+- **MCP (Model Context Protocol)** — 10-tool server for conversational database access
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - npm
 
 ### Install & Run
@@ -80,60 +73,94 @@ This isn't another listing site. It's a **buyer's intelligence platform**.
 ```bash
 npm install
 npx playwright install chromium
+cp .env.example .env.local   # fill in your values
 npm run dev
 ```
 
 The app will be available at `http://localhost:3000`.
 
-### Environment Variables
+### Sync Database from CI
 
-Copy the example and fill in your values:
+To pull the latest scraped database from Cloudflare R2:
 
 ```bash
-cp .env.example .env.local
+./scripts/sync-db.sh
 ```
+
+### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SCRAPE_API_KEY` | Secret key for the `/api/scrape` endpoint | *(required)* |
+| `SCRAPE_API_KEY` | Secret key for the `/api/scrape` endpoint (rejects known defaults) | *(required)* |
 | `DATABASE_PATH` | Path to the SQLite database file | `./data/inventory.db` |
 | `SCRAPE_INTERVAL_HOURS` | How often the background cron job scrapes | `4` |
 | `ALGOLIA_APP_ID` | Algolia application ID for dealer search | *(required for Algolia dealers)* |
 | `ALGOLIA_API_KEY` | Algolia search API key | *(required for Algolia dealers)* |
+| `ANTHROPIC_API_KEY` | Anthropic API key for AI-powered search | *(optional)* |
 
-### Seed the Database
-
-Trigger an initial scrape to populate inventory:
-
-```bash
-npx tsx scripts/seed.ts
-```
-
-Or generate sample data for testing:
+### Run Tests
 
 ```bash
-npx tsx scripts/seed-sample.ts
+npm test            # single run
+npm run test:watch  # watch mode
 ```
 
-When running with `next start`, a background cron job automatically scrapes at the configured interval.
+### Trigger a Manual Scrape
+
+```bash
+npm run scrape
+```
 
 ## API Routes
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/api/inventory` | GET | Filtered vehicle list (top 100 by quality score) |
-| `/api/inventory/[vin]` | GET | Single vehicle details |
-| `/api/stats` | GET | Aggregate stats, makes, models, color distribution |
+| `/api/inventory` | GET | Paginated, filtered vehicle list with Zod validation |
+| `/api/inventory/[vin]` | GET | Single vehicle details with all listings |
+| `/api/stats` | GET | Aggregate stats — makes, models, colors, price ranges |
 | `/api/dealers` | GET | Dealer list with vehicle counts |
-| `/api/scrape` | POST | Trigger a scrape (requires API key) |
+| `/api/price-history/[vin]` | GET | Full price change timeline for a vehicle |
+| `/api/scrape-health` | GET | Last 10 scrapes, active/removed counts, timing |
+| `/api/scrape` | POST | Trigger a scrape (requires `x-api-key` header) |
+| `/api/ai-search` | POST | Natural language query → inventory filters via Claude |
+
+## MCP Server
+
+10 tools for querying the inventory database from any Claude session:
+
+| Tool | Description |
+|------|-------------|
+| `search_inventory` | Filter by make, model, dealer, color, condition, status, price range |
+| `get_vehicle` | Full details by VIN with parsed packages |
+| `get_listings` | All listings for a VIN across sources and dealers |
+| `get_market_stats` | Aggregate counts, avg/min/max price, makes, models, colors |
+| `get_dealers` | Dealer list with vehicle counts |
+| `get_price_history` | Price change timeline for a VIN |
+| `get_new_vehicles` | Vehicles first seen since a given date |
+| `get_price_drops` | Price decreases since a date, sorted by largest drop |
+| `trigger_scrape` | On-demand scrape with error handling |
+| `get_scrape_health` | Recent scrape history, active/removed counts |
 
 ## Project Structure
 
 ```
-app/            Next.js pages, layout, and API routes
-components/     React UI components (FilterBar, InventoryTable, ComparePanel, etc.)
-lib/            Database, scraper, scoring, types, and cron logic
-scripts/        Seed and test scripts
-data/           SQLite database (gitignored)
-mcp-server/     Custom MCP server for conversational database access (planned)
+app/                    Next.js pages, layout, and API routes
+components/             React UI (FilterBar, InventoryTable, VehicleCard, ComparePanel, etc.)
+lib/                    Database, scrapers, scoring, validation, types, AI search
+lib/scrapers/           Scraper modules (ddc.ts, algolia.ts, carscom.ts, cargurus.ts)
+mcp-server/             MCP server for conversational database access
+scripts/                Scrape, seed, sync, and diagnostic scripts
+tests/                  Vitest test suites (scoring, parsers, db, validation)
+.github/workflows/      CI: scrape.yml (6h cron + R2), test.yml (push/PR)
+data/                   SQLite database (gitignored, persisted to Cloudflare R2)
 ```
+
+## Roadmap
+
+- [x] **Phase 1** — Core tracker: SQLite, DDC + Algolia scrapers, dashboard, quality scores, comparison
+- [x] **Phase 2** — Multi-source pipeline: listings model, scraper worker pattern, price history, GitHub Actions cron + R2 persistence
+- [ ] **Phase 3** — Dealer intelligence: price trend analysis, negotiation room estimator, dealer scoring (accumulating data since March 2026)
+- [ ] **Phase 4** — Scale to 400+ dealers: platform auto-detection, dealer config in DB, batch onboarding
+- [ ] **Phase 5** — Infrastructure: job queue, caching, rate limiting, hosted DB migration
+- [ ] **Phase 6** — Smart alerts: price drop notifications, new inventory alerts
+- [ ] **Phase 7** — Public product: auth, hosted DB, embedded chat
