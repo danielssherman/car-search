@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDealers } from "@/lib/db";
+import { apiError } from "@/lib/validation";
 
 export async function GET() {
   try {
@@ -7,9 +8,6 @@ export async function GET() {
     return NextResponse.json({ dealers });
   } catch (err) {
     console.error("Error fetching dealers:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch dealers" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch dealers", 500);
   }
 }

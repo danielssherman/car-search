@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStats, getLastScrapeTime } from "@/lib/db";
+import { apiError } from "@/lib/validation";
 
 export async function GET() {
   try {
@@ -8,9 +9,6 @@ export async function GET() {
     return NextResponse.json({ ...stats, last_scraped: lastScraped });
   } catch (err) {
     console.error("Error fetching stats:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch stats" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch stats", 500);
   }
 }

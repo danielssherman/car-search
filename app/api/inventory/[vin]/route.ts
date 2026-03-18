@@ -1,25 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getVehicleByVin, getListingsForVin } from "@/lib/db";
+import { VinSchema, apiError } from "@/lib/validation";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: { vin: string } }
 ) {
+  const vinResult = VinSchema.safeParse(params.vin);
+  if (!vinResult.success) {
+    return apiError("Invalid VIN format", 400, vinResult.error.issues);
+  }
+
+  const vin = vinResult.data;
+
   try {
-    const vehicle = getVehicleByVin(params.vin);
+    const vehicle = getVehicleByVin(vin);
     if (!vehicle) {
-      return NextResponse.json(
-        { error: "Vehicle not found" },
-        { status: 404 }
-      );
+      return apiError("Vehicle not found", 404);
     }
-    const listings = getListingsForVin(params.vin);
+    const listings = getListingsForVin(vin);
     return NextResponse.json({ ...vehicle, listings });
   } catch (err) {
     console.error("Error fetching vehicle:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch vehicle" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch vehicle", 500);
   }
 }

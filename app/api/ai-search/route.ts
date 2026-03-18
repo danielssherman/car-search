@@ -1,32 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getVehicles } from "@/lib/db";
 import { parseNaturalLanguageQuery } from "@/lib/ai-search";
+import { AISearchBodySchema, apiError } from "@/lib/validation";
 
 export async function POST(request: NextRequest) {
-  let body: { query?: string };
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON body" },
-      { status: 400 }
-    );
+    return apiError("Invalid JSON body", 400);
   }
 
-  const query = body.query?.trim();
-  if (!query || query.length === 0) {
-    return NextResponse.json(
-      { error: "Missing required field: query" },
-      { status: 400 }
-    );
+  const result = AISearchBodySchema.safeParse(body);
+  if (!result.success) {
+    return apiError("Validation error", 400, result.error.issues);
   }
 
-  if (query.length > 500) {
-    return NextResponse.json(
-      { error: "Query must be 500 characters or less" },
-      { status: 400 }
-    );
-  }
+  const query = result.data.query; // already trimmed by schema
 
   try {
     const { filters, explanation } = await parseNaturalLanguageQuery(query);
@@ -55,10 +45,7 @@ export async function POST(request: NextRequest) {
       });
     } catch (fallbackErr) {
       console.error("Fallback search also failed:", fallbackErr);
-      return NextResponse.json(
-        { error: "Search failed" },
-        { status: 500 }
-      );
+      return apiError("Search failed", 500);
     }
   }
 }

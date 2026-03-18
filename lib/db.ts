@@ -13,9 +13,11 @@ import type {
 } from "./types";
 import { calculateQualityScore } from "./scoring";
 
-const DB_PATH = process.env.DATABASE_PATH || "./data/inventory.db";
-
 let db: Database.Database | null = null;
+
+function getDbPath(): string {
+  return process.env.DATABASE_PATH || "./data/inventory.db";
+}
 
 function migrateSchema(database: Database.Database): void {
   const columns = database
@@ -55,12 +57,13 @@ function migrateSchema(database: Database.Database): void {
 export function getDb(): Database.Database {
   if (db) return db;
 
-  const dir = path.dirname(DB_PATH);
+  const dbPath = getDbPath();
+  const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  db = new Database(DB_PATH);
+  db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
 
@@ -152,6 +155,8 @@ export function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_listings_dealer ON listings(dealer_name);
     CREATE INDEX IF NOT EXISTS idx_listings_price ON listings(price);
     CREATE INDEX IF NOT EXISTS idx_price_history_vin ON price_history(vin);
+    CREATE INDEX IF NOT EXISTS idx_listings_vin_active_price ON listings(vin, removed_at, price);
+    CREATE INDEX IF NOT EXISTS idx_price_history_lookup ON price_history(vin, source, dealer_name, recorded_at);
   `);
 
   // One-time migration: copy existing vehicle data into listings
@@ -187,18 +192,34 @@ export function getDb(): Database.Database {
   return db;
 }
 
-// Subquery that finds the best (cheapest) active listing for each vehicle
-const BEST_LISTING_JOIN = `
-  LEFT JOIN listings bl ON bl.id = (
-    SELECT id FROM listings
-    WHERE vin = v.vin AND removed_at IS NULL
-    ORDER BY CASE WHEN price > 0 THEN 0 ELSE 1 END, price ASC
-    LIMIT 1
-  )
-`;
+/** Reset the singleton — used only in tests to get a fresh DB per test. */
+export function _resetDb(): void {
+  if (db) {
+    db.close();
+    db = null;
+  }
+}
 
-const VEHICLE_SELECT = `
-  SELECT
+// CTE fragments for best-listing and listing-count joins
+const BEST_LISTINGS_CTE = `
+  best_listings AS (
+    SELECT vin, id, price, msrp, source, dealer_name, dealer_city,
+           status, detail_url, stock_number, packages,
+           ROW_NUMBER() OVER (
+             PARTITION BY vin
+             ORDER BY CASE WHEN price > 0 THEN 0 ELSE 1 END, price ASC
+           ) as rn
+    FROM listings WHERE removed_at IS NULL
+  )`;
+
+const LISTING_COUNTS_CTE = `
+  listing_counts AS (
+    SELECT vin, COUNT(*) as listing_count
+    FROM listings WHERE removed_at IS NULL
+    GROUP BY vin
+  )`;
+
+const VEHICLE_COLUMNS = `
     v.vin, v.year, v.make, v.model, v.trim, v.body_style, v.drivetrain,
     v.engine, v.fuel_type, v.mileage, v.condition, v.exterior_color, v.interior_color,
     v.quality_score, v.first_seen, v.last_seen, v.removed_at,
@@ -211,10 +232,32 @@ const VEHICLE_SELECT = `
     COALESCE(bl.detail_url, '') as detail_url,
     COALESCE(bl.stock_number, '') as stock_number,
     COALESCE(bl.packages, '[]') as packages,
-    (SELECT COUNT(*) FROM listings WHERE vin = v.vin AND removed_at IS NULL) as listing_count
+    COALESCE(lc.listing_count, 0) as listing_count`;
+
+/**
+ * Build a full vehicle query using CTEs for best listing and listing counts.
+ * Returns the WITH + SELECT + FROM + JOINs portion — caller appends WHERE/ORDER/LIMIT.
+ */
+function buildVehicleQuery(): string {
+  return `
+  WITH ${BEST_LISTINGS_CTE},
+  ${LISTING_COUNTS_CTE}
+  SELECT ${VEHICLE_COLUMNS}
   FROM vehicles v
-  ${BEST_LISTING_JOIN}
-`;
+  LEFT JOIN best_listings bl ON bl.vin = v.vin AND bl.rn = 1
+  LEFT JOIN listing_counts lc ON lc.vin = v.vin`;
+}
+
+/**
+ * Build a count query using the best_listings CTE (needed for price/status/dealer filters).
+ */
+function buildCountQuery(): string {
+  return `
+  WITH ${BEST_LISTINGS_CTE}
+  SELECT COUNT(*) as total
+  FROM vehicles v
+  LEFT JOIN best_listings bl ON bl.vin = v.vin AND bl.rn = 1`;
+}
 
 function buildFilterConditions(filters: InventoryFilters): {
   where: string;
@@ -314,7 +357,7 @@ export function getVehicles(filters: InventoryFilters): Vehicle[] {
     limitOffsetParams.push(filters.offset);
   }
 
-  const sql = `${VEHICLE_SELECT} ${where} ORDER BY ${orderBy} ${limitClause}`;
+  const sql = `${buildVehicleQuery()} ${where} ORDER BY ${orderBy} ${limitClause}`;
 
   return db.prepare(sql).all(...params, ...limitOffsetParams) as Vehicle[];
 }
@@ -323,12 +366,7 @@ export function countVehicles(filters: InventoryFilters): number {
   const db = getDb();
   const { where, params } = buildFilterConditions(filters);
 
-  const sql = `
-    SELECT COUNT(*) as total
-    FROM vehicles v
-    ${BEST_LISTING_JOIN}
-    ${where}
-  `;
+  const sql = `${buildCountQuery()} ${where}`;
 
   const row = db.prepare(sql).get(...params) as { total: number };
   return row.total;
@@ -337,7 +375,7 @@ export function countVehicles(filters: InventoryFilters): number {
 export function getVehicleByVin(vin: string): Vehicle | undefined {
   const db = getDb();
   return db
-    .prepare(`${VEHICLE_SELECT} WHERE v.vin = ?`)
+    .prepare(`${buildVehicleQuery()} WHERE v.vin = ?`)
     .get(vin) as Vehicle | undefined;
 }
 
@@ -363,7 +401,7 @@ export function getNewVehicles(since: string, limit: number = 50): Vehicle[] {
   const db = getDb();
   return db
     .prepare(
-      `${VEHICLE_SELECT} WHERE v.removed_at IS NULL AND v.first_seen >= ? ORDER BY v.first_seen DESC LIMIT ?`
+      `${buildVehicleQuery()} WHERE v.removed_at IS NULL AND v.first_seen >= ? ORDER BY v.first_seen DESC LIMIT ?`
     )
     .all(since, limit) as Vehicle[];
 }
@@ -388,25 +426,25 @@ export function getPriceDrops(
   const db = getDb();
   return db
     .prepare(
-      `SELECT
-        ph2.vin, v.year, v.make, v.model, v.trim,
-        ph2.dealer_name, ph2.source,
-        ph1.price as old_price,
-        ph2.price as new_price,
-        (ph1.price - ph2.price) as drop_amount,
-        ROUND((ph1.price - ph2.price) * 100.0 / ph1.price, 1) as drop_pct,
-        ph2.recorded_at as changed_at
-      FROM price_history ph2
-      JOIN price_history ph1 ON ph1.id = (
-        SELECT id FROM price_history
-        WHERE vin = ph2.vin AND source = ph2.source AND dealer_name = ph2.dealer_name
-          AND recorded_at < ph2.recorded_at
-        ORDER BY recorded_at DESC LIMIT 1
+      `WITH price_changes AS (
+        SELECT vin, source, dealer_name, price, recorded_at,
+          LAG(price) OVER (PARTITION BY vin, source, dealer_name ORDER BY recorded_at) as prev_price
+        FROM price_history
       )
-      JOIN vehicles v ON v.vin = ph2.vin
-      WHERE ph2.recorded_at >= ?
-        AND ph2.price < ph1.price
-        AND ph1.price > 0
+      SELECT pc.vin, v.year, v.make, v.model, v.trim,
+        pc.dealer_name, pc.source,
+        pc.prev_price as old_price,
+        pc.price as new_price,
+        (pc.prev_price - pc.price) as drop_amount,
+        ROUND(CAST(pc.prev_price - pc.price AS REAL) / pc.prev_price * 100, 1) as drop_pct,
+        pc.recorded_at as changed_at
+      FROM price_changes pc
+      JOIN vehicles v ON v.vin = pc.vin
+      WHERE pc.recorded_at >= ?
+        AND pc.prev_price IS NOT NULL
+        AND pc.price < pc.prev_price
+        AND pc.prev_price > 0
+        AND v.removed_at IS NULL
       ORDER BY drop_amount DESC
       LIMIT ?`
     )
@@ -431,13 +469,14 @@ export function getStats(): InventoryStats {
 
   const counts = db
     .prepare(
-      `SELECT
+      `WITH ${BEST_LISTINGS_CTE}
+      SELECT
         COUNT(*) as total,
         COALESCE(ROUND(AVG(bl.price)), 0) as avg_price,
         COALESCE(MIN(CASE WHEN bl.price > 0 THEN bl.price END), 0) as min_price,
         COALESCE(MAX(bl.price), 0) as max_price
       FROM vehicles v
-      ${BEST_LISTING_JOIN}
+      LEFT JOIN best_listings bl ON bl.vin = v.vin AND bl.rn = 1
       WHERE v.removed_at IS NULL`
     )
     .get() as {
@@ -466,12 +505,6 @@ export function getStats(): InventoryStats {
     count_by_make[row.make] = row.count;
   }
 
-  const makes = db
-    .prepare(
-      "SELECT DISTINCT make FROM vehicles WHERE removed_at IS NULL AND make != '' ORDER BY make"
-    )
-    .all() as { make: string }[];
-
   const modelRows = db
     .prepare(
       `SELECT model, COUNT(*) as count
@@ -484,12 +517,6 @@ export function getStats(): InventoryStats {
   for (const row of modelRows) {
     count_by_model[row.model] = row.count;
   }
-
-  const models = db
-    .prepare(
-      "SELECT DISTINCT model FROM vehicles WHERE removed_at IS NULL AND model != '' ORDER BY model"
-    )
-    .all() as { model: string }[];
 
   const conditionRows = db
     .prepare(
@@ -523,8 +550,8 @@ export function getStats(): InventoryStats {
     count_by_make,
     count_by_model,
     count_by_condition,
-    makes: makes.map((m) => m.make),
-    models: models.map((m) => m.model),
+    makes: Object.keys(count_by_make).sort(),
+    models: Object.keys(count_by_model).sort(),
     color_distribution,
   };
 }
@@ -598,6 +625,10 @@ export function upsertVehicles(vehicles: ScrapedVehicle[]): {
     VALUES (?, ?, ?, ?, ?)
   `);
 
+  const lastPriceHistoryStmt = db.prepare(
+    "SELECT price FROM price_history WHERE vin = ? AND source = ? AND dealer_name = ? ORDER BY recorded_at DESC LIMIT 1"
+  );
+
   const transaction = db.transaction(() => {
     for (const v of vehicles) {
       const exists = checkVehicleStmt.get(v.vin);
@@ -617,13 +648,20 @@ export function upsertVehicles(vehicles: ScrapedVehicle[]): {
         | { id: number; price: number }
         | undefined;
 
-      // 3. Record price history if price changed (or new listing)
+      // 3. Record price history if price changed (or new listing), with dedup
       if (price > 0) {
-        if (!existing) {
-          // New listing — record initial price
+        // Check last recorded price in price_history to prevent duplicates
+        const lastHistoryRow = lastPriceHistoryStmt.get(v.vin, v.source, v.dealer_name) as
+          | { price: number }
+          | undefined;
+
+        const lastHistoryPrice = lastHistoryRow?.price;
+
+        if (!existing && lastHistoryPrice !== price) {
+          // New listing — record initial price (skip if already recorded)
           insertPriceHistoryStmt.run(v.vin, v.source, v.dealer_name, price, now);
-        } else if (existing.price !== price) {
-          // Price changed — append to history
+        } else if (existing && existing.price !== price && lastHistoryPrice !== price) {
+          // Price changed — append to history (skip if already recorded)
           insertPriceHistoryStmt.run(v.vin, v.source, v.dealer_name, price, now);
         }
       }
@@ -645,16 +683,13 @@ export function upsertVehicles(vehicles: ScrapedVehicle[]): {
 export function updateQualityScores(): void {
   const db = getDb();
 
-  // Market averages per make/model/year using best listing price
+  // Market averages per make/model/year using best listing price (CTE-based)
   const avgPrices = db
     .prepare(
-      `SELECT v.make, v.model, v.year, AVG(bl.price) as avg_price
+      `WITH ${BEST_LISTINGS_CTE}
+      SELECT v.make, v.model, v.year, AVG(bl.price) as avg_price
       FROM vehicles v
-      INNER JOIN listings bl ON bl.id = (
-        SELECT id FROM listings
-        WHERE vin = v.vin AND removed_at IS NULL AND price > 0
-        ORDER BY price ASC LIMIT 1
-      )
+      INNER JOIN best_listings bl ON bl.vin = v.vin AND bl.rn = 1
       WHERE v.removed_at IS NULL AND bl.price > 0
       GROUP BY v.make, v.model, v.year`
     )
@@ -672,17 +707,13 @@ export function updateQualityScores(): void {
 
   const vehicles = db
     .prepare(
-      `SELECT v.vin, v.make, v.model, v.year, v.first_seen, v.mileage, v.condition,
+      `WITH ${BEST_LISTINGS_CTE}
+      SELECT v.vin, v.make, v.model, v.year, v.first_seen, v.mileage, v.condition,
         COALESCE(bl.price, 0) as price,
         COALESCE(bl.status, '') as status,
         COALESCE(bl.packages, '[]') as packages
       FROM vehicles v
-      LEFT JOIN listings bl ON bl.id = (
-        SELECT id FROM listings
-        WHERE vin = v.vin AND removed_at IS NULL
-        ORDER BY CASE WHEN price > 0 THEN 0 ELSE 1 END, price ASC
-        LIMIT 1
-      )
+      LEFT JOIN best_listings bl ON bl.vin = v.vin AND bl.rn = 1
       WHERE v.removed_at IS NULL`
     )
     .all() as {
