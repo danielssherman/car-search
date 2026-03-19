@@ -1,21 +1,38 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { InventoryFilters } from "./types";
+import { getStats, getDealers } from "./db";
 
-const SYSTEM_PROMPT = `You are a BMW inventory search assistant for the Bay Area Car Tracker.
+interface ParsedFilters {
+  filters: InventoryFilters;
+  explanation: string;
+}
+
+function buildSystemPrompt(): { prompt: string; models: string[] } {
+  const stats = getStats();
+  const dealers = getDealers();
+
+  const makesList = Object.entries(stats.count_by_make)
+    .sort(([, a], [, b]) => b - a)
+    .map(([make, count]) => `${make} (${count})`)
+    .join(", ");
+
+  const dealersList = dealers
+    .map((d) => `${d.dealer_name} (${d.dealer_city})`)
+    .join(", ");
+
+  const modelsList = stats.models.join(", ");
+
+  const prompt = `You are a car inventory search assistant for the Bay Area Car Tracker.
 Your job: interpret a natural language car search query and return structured filters as JSON.
 
 INVENTORY CONTEXT:
-- All 1,800 vehicles are BMW, from 5 Bay Area dealers
-- Dealers: Stevens Creek BMW (San Jose), BMW of Fremont, BMW of San Rafael, Peter Pan BMW (San Mateo), BMW of San Francisco
-- Price range: $42,455 - $184,860 (average: $76,212)
-- All current inventory is condition: "New"
+- ${stats.total.toLocaleString()} vehicles across ${stats.total_dealers} Bay Area dealers
+- Makes available: ${makesList}
+- Dealers: ${dealersList}
+- Price range: $${stats.min_price.toLocaleString()} - $${stats.max_price.toLocaleString()} (average: $${Math.round(stats.avg_price).toLocaleString()})
 
 AVAILABLE MODELS (use these exact strings):
-Sedans: 230i, 228i, 330i, 330e, 340i, 430i, 440i, 530i, 540i, 550e, 740i, 750e, 760i, 840i, M235i, M240i, M340, M440i, M3, M5, M8, M850i, i4, i5, i7
-  Series groupings: "2 Series", "3 Series", "4 Series", "5 Series", "7 Series", "8 Series"
-SUVs: X1, X2, X3, X5, X5 PHEV, X5 M, X6, X6 M, X7, XM, iX, ALPINA XB7
-Convertibles/Roadsters: Z4 (also some 430i, M4 come in convertible)
-Coupes: M2, M4 (also 430i comes in coupe)
+${modelsList}
 
 BMW MODEL KNOWLEDGE:
 - "Sporty": M2, M3, M4, M5, M8, M340, M440i, M240i, M235i, X5 M, X6 M, XM (M-cars and M-Sport trims)
@@ -30,6 +47,7 @@ BMW MODEL KNOWLEDGE:
 
 FILTER SCHEMA (return only fields that are relevant):
 {
+  "make": string,          // make name if the user specifies one
   "models": string[],      // array of model names from the list above
   "model": string,         // single model if the user asked for exactly one
   "color": string,         // exterior color (partial match OK)
@@ -51,32 +69,21 @@ RULES:
 5. Default sort to "best_value" unless the user indicates price preference.
 6. The "explanation" field is REQUIRED. Explain what you interpreted and why you chose these filters.
 7. If the query is too vague or unrelated to cars, return {"explanation": "..."} with helpful guidance.
-8. Remember: only BMW vehicles are available. If user asks for another make, note this in explanation and suggest similar BMW models.`;
+8. If the user asks for a make not in inventory, note this in explanation and suggest similar vehicles from the available makes.`;
 
-interface ParsedFilters {
-  filters: InventoryFilters;
-  explanation: string;
+  return { prompt, models: stats.models };
 }
 
-const KNOWN_MODELS = [
-  "2 Series", "228i", "230i", "235i", "3 Series", "330e", "330i", "340i",
-  "4 Series", "430i", "440i", "5 Series", "530i", "540i", "550e",
-  "7 Series", "740i", "750e", "760i", "8 Series", "840i",
-  "ALPINA XB7", "M2", "M235i", "M240i", "M3", "M340", "M4", "M440i",
-  "M5", "M8", "M850i", "X1", "X2", "X3", "X5", "X5 M", "X5 PHEV",
-  "X6", "X6 M", "X7", "XM", "Z4", "i4", "i5", "i7", "iX",
-];
-
-function normalizeModels(models: string[]): string[] {
+function normalizeModels(models: string[], knownModels: string[]): string[] {
   return models
     .map((m) => {
-      if (KNOWN_MODELS.includes(m)) return m;
+      if (knownModels.includes(m)) return m;
       // Try case-insensitive match
-      for (const known of KNOWN_MODELS) {
+      for (const known of knownModels) {
         if (known.toLowerCase() === m.toLowerCase()) return known;
       }
       // Try partial match (e.g., "M340i" -> "M340")
-      for (const known of KNOWN_MODELS) {
+      for (const known of knownModels) {
         if (
           m.toLowerCase().startsWith(known.toLowerCase()) ||
           known.toLowerCase().startsWith(m.toLowerCase())
@@ -97,12 +104,14 @@ export async function parseNaturalLanguageQuery(
     throw new Error("ANTHROPIC_API_KEY is not configured");
   }
 
+  const { prompt, models: knownModels } = buildSystemPrompt();
+
   const client = new Anthropic({ apiKey });
 
   const message = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 512,
-    system: SYSTEM_PROMPT,
+    system: prompt,
     messages: [{ role: "user", content: query }],
   });
 
@@ -123,13 +132,15 @@ export async function parseNaturalLanguageQuery(
 
   const filters: InventoryFilters = {};
 
+  if (typeof parsed.make === "string") filters.make = parsed.make;
+
   if (Array.isArray(parsed.models) && parsed.models.length > 0) {
-    const normalized = normalizeModels(parsed.models as string[]);
+    const normalized = normalizeModels(parsed.models as string[], knownModels);
     if (normalized.length > 0) {
       filters.models = normalized;
     }
   } else if (typeof parsed.model === "string") {
-    const normalized = normalizeModels([parsed.model]);
+    const normalized = normalizeModels([parsed.model], knownModels);
     if (normalized.length > 0) {
       filters.model = normalized[0];
     }

@@ -95,6 +95,7 @@ function parseCarGurusListing(listing: any): ScrapedVehicle | null {
       exterior_color: exteriorColor,
       interior_color: listing.interiorColorName || "Unknown",
       msrp: price,
+      asking_price: price,
       source: "cargurus",
       dealer_name: dealerName,
       dealer_city: dealerCity,

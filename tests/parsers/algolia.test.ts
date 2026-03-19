@@ -56,6 +56,7 @@ describe("parseAlgoliaHits", () => {
       expect(v.exterior_color).toBe("Alpine White");
       expect(v.interior_color).toBe("Black");
       expect(v.msrp).toBe(48000);
+      expect(v.asking_price).toBe(46500);
       expect(v.source).toBe("dealer_algolia");
       expect(v.dealer_name).toBe("Peter Pan BMW");
       expect(v.dealer_city).toBe("San Mateo");
@@ -121,50 +122,58 @@ describe("parseAlgoliaHits", () => {
     });
   });
 
-  describe("price fallback", () => {
-    it("uses msrp when present", () => {
+  describe("price separation (msrp vs asking_price)", () => {
+    it("separates msrp and asking_price when both present", () => {
       const hits = [makeAlgoliaHit({ msrp: "55000", our_price: "53000" })];
       const result = parseAlgoliaHits(hits, DEFAULT_DEALER);
       expect(result[0].msrp).toBe(55000);
+      expect(result[0].asking_price).toBe(53000);
     });
 
-    it("falls back to our_price when msrp is 0", () => {
+    it("uses our_price as asking_price when msrp is 0", () => {
       const hits = [makeAlgoliaHit({ msrp: "0", our_price: "53000" })];
       const result = parseAlgoliaHits(hits, DEFAULT_DEALER);
-      expect(result[0].msrp).toBe(53000);
+      expect(result[0].msrp).toBe(0);
+      expect(result[0].asking_price).toBe(53000);
     });
 
-    it("falls back to our_price when msrp is missing", () => {
+    it("uses our_price as asking_price when msrp is missing", () => {
       const hit = makeAlgoliaHit({ our_price: "42000" });
       delete (hit as Record<string, unknown>).msrp;
       const result = parseAlgoliaHits([hit], DEFAULT_DEALER);
-      expect(result[0].msrp).toBe(42000);
+      expect(result[0].msrp).toBe(0);
+      expect(result[0].asking_price).toBe(42000);
     });
 
-    it("falls back to our_price when msrp is empty string", () => {
+    it("uses our_price as asking_price when msrp is empty string", () => {
       const hits = [makeAlgoliaHit({ msrp: "", our_price: "42000" })];
       const result = parseAlgoliaHits(hits, DEFAULT_DEALER);
-      expect(result[0].msrp).toBe(42000);
+      expect(result[0].msrp).toBe(0);
+      expect(result[0].asking_price).toBe(42000);
     });
 
-    it("returns 0 when both msrp and our_price are missing", () => {
+    it("returns 0 for both when both msrp and our_price are missing", () => {
       const hit = makeAlgoliaHit();
       delete (hit as Record<string, unknown>).msrp;
       delete (hit as Record<string, unknown>).our_price;
       const result = parseAlgoliaHits([hit], DEFAULT_DEALER);
       expect(result[0].msrp).toBe(0);
+      expect(result[0].asking_price).toBe(0);
     });
 
     it("handles prices with commas and dollar signs", () => {
       const hits = [makeAlgoliaHit({ msrp: "$55,000", our_price: "53000" })];
       const result = parseAlgoliaHits(hits, DEFAULT_DEALER);
       expect(result[0].msrp).toBe(55000);
+      expect(result[0].asking_price).toBe(53000);
     });
 
-    it("handles numeric msrp (not just strings)", () => {
-      const hits = [makeAlgoliaHit({ msrp: 48000 })];
-      const result = parseAlgoliaHits(hits, DEFAULT_DEALER);
+    it("falls back asking_price to msrp when our_price is missing", () => {
+      const hit = makeAlgoliaHit({ msrp: 48000 });
+      delete (hit as Record<string, unknown>).our_price;
+      const result = parseAlgoliaHits([hit], DEFAULT_DEALER);
       expect(result[0].msrp).toBe(48000);
+      expect(result[0].asking_price).toBe(48000);
     });
   });
 

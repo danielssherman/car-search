@@ -27,6 +27,7 @@ import type { ScrapedVehicle } from "@/lib/types";
 
 /** Build a ScrapedVehicle with sensible defaults. */
 function makeScrapedVehicle(overrides: Partial<ScrapedVehicle> = {}): ScrapedVehicle {
+  const msrp = overrides.msrp ?? 65000;
   return {
     vin: "WBA00000000000001",
     year: 2025,
@@ -41,7 +42,8 @@ function makeScrapedVehicle(overrides: Partial<ScrapedVehicle> = {}): ScrapedVeh
     condition: "New",
     exterior_color: "Black Sapphire",
     interior_color: "Cognac",
-    msrp: 65000,
+    msrp,
+    asking_price: overrides.asking_price ?? msrp,
     source: "dealer",
     dealer_name: "Stevens Creek BMW",
     dealer_city: "San Jose",
@@ -565,6 +567,43 @@ describe("upsertVehicles", () => {
     const vehicle = getVehicleByVin("VIN_ZERO");
     expect(vehicle).toBeDefined();
     expect(vehicle!.price).toBe(55000);
+  });
+
+  it("resets first_seen and sets re_listed_at when a removed vehicle reappears", () => {
+    const dealer = "Dealer Relist";
+    const v = makeScrapedVehicle({ vin: "VIN_RELIST", dealer_name: dealer, source: "dealer" });
+    upsertVehicles([v]);
+
+    // Read original first_seen
+    const db = getDb();
+    const before = db
+      .prepare("SELECT first_seen, re_listed_at, removed_at FROM vehicles WHERE vin = ?")
+      .get("VIN_RELIST") as { first_seen: string; re_listed_at: string | null; removed_at: string | null };
+    expect(before.removed_at).toBeNull();
+    expect(before.re_listed_at).toBeNull();
+    const originalFirstSeen = before.first_seen;
+
+    // Mark as removed: pass a different VIN at the same dealer so our VIN is "missing"
+    const other = makeScrapedVehicle({ vin: "VIN_OTHER", dealer_name: dealer, source: "dealer" });
+    upsertVehicles([other]);
+    markMissingAsRemoved([other]); // VIN_RELIST is missing from this scrape
+
+    const removed = db
+      .prepare("SELECT removed_at FROM vehicles WHERE vin = ?")
+      .get("VIN_RELIST") as { removed_at: string | null };
+    expect(removed.removed_at).not.toBeNull();
+
+    // Re-insert the same vehicle
+    upsertVehicles([v]);
+
+    const after = db
+      .prepare("SELECT first_seen, re_listed_at, removed_at FROM vehicles WHERE vin = ?")
+      .get("VIN_RELIST") as { first_seen: string; re_listed_at: string | null; removed_at: string | null };
+
+    expect(after.removed_at).toBeNull();
+    expect(after.re_listed_at).not.toBeNull();
+    // first_seen should be reset (different from original)
+    expect(after.first_seen).not.toBe(originalFirstSeen);
   });
 });
 

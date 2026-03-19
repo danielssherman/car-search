@@ -24,10 +24,9 @@ export function parseAlgoliaHits(hits: any[], dealer: AlgoliaDealerInfo): Scrape
     const trim = hit.trim || model;
     if (!model && !trim) continue;
 
-    let msrp = parseInt(String(hit.msrp || 0).replace(/[^0-9]/g, ""));
-    if (!msrp) {
-      msrp = parseInt(String(hit.our_price || 0).replace(/[^0-9]/g, ""));
-    }
+    const msrp = parseInt(String(hit.msrp || 0).replace(/[^0-9]/g, "")) || 0;
+    const ourPrice = parseInt(String(hit.our_price || 0).replace(/[^0-9]/g, "")) || 0;
+    const askingPrice = ourPrice || msrp;
 
     const link = hit.link || "";
     const detailUrl = link || `${dealer.baseUrl}/new-vehicles/?vin=${vin}`;
@@ -47,6 +46,7 @@ export function parseAlgoliaHits(hits: any[], dealer: AlgoliaDealerInfo): Scrape
       exterior_color: hit.ext_color || "Unknown",
       interior_color: hit.int_color || "Unknown",
       msrp,
+      asking_price: askingPrice,
       source: "dealer_algolia",
       dealer_name: dealer.name,
       dealer_city: dealer.city,

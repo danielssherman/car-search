@@ -91,6 +91,7 @@ function main() {
       exterior_color: randomItem(COLORS),
       interior_color: randomItem(INTERIOR_COLORS),
       msrp: trimInfo.basePrice + pkgAdder,
+      asking_price: trimInfo.basePrice + pkgAdder,
       source: "dealer_ddc",
       dealer_name: dealer.name,
       dealer_city: dealer.city,

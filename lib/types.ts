@@ -129,6 +129,7 @@ export interface ScrapedVehicle {
   exterior_color: string;
   interior_color: string;
   msrp: number;
+  asking_price: number;
   source: string;
   dealer_name: string;
   dealer_city: string;

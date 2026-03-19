@@ -120,6 +120,7 @@ async function parseVehicleCard(
       exterior_color: "Unknown",
       interior_color: "Unknown",
       msrp,
+      asking_price: msrp,
       source: "carscom",
       dealer_name: dealerName,
       dealer_city: dealerCity,

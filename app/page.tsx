@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense } from "react";
 import type { Vehicle, InventoryFilters, InventoryStats, DealerInfo } from "@/lib/types";
@@ -74,6 +74,10 @@ function DashboardContent() {
   const [aiExplanation, setAiExplanation] = useState<string | null>(null);
   const [aiQuery, setAiQuery] = useState<string | null>(null);
   const [aiFilters, setAiFilters] = useState<InventoryFilters | null>(null);
+
+  // AbortController for cancelling superseded fetch requests
+  const fetchAbortRef = useRef<AbortController | null>(null);
+  const aiAbortRef = useRef<AbortController | null>(null);
 
   const parseMultiParam = (key: string): string[] => {
     const val = searchParams.get(key);
@@ -200,6 +204,10 @@ function DashboardContent() {
   }, [filters]);
 
   const fetchData = useCallback(async () => {
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
+
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -216,10 +224,11 @@ function DashboardContent() {
       params.set("page", String(page));
       params.set("pageSize", String(PAGE_SIZE));
 
+      const signal = controller.signal;
       const [inventoryRes, statsRes, dealersRes] = await Promise.all([
-        fetch(`/api/inventory?${params.toString()}`),
-        fetch("/api/stats"),
-        fetch("/api/dealers"),
+        fetch(`/api/inventory?${params.toString()}`, { signal }),
+        fetch("/api/stats", { signal }),
+        fetch("/api/dealers", { signal }),
       ]);
 
       const inventoryData = await inventoryRes.json();
@@ -232,9 +241,12 @@ function DashboardContent() {
       setStats(statsData);
       setDealers(dealersData.dealers || []);
     } catch (err) {
+      if ((err as Error).name === "AbortError") return;
       console.error("Failed to fetch data:", err);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [filters, page]);
 
@@ -265,6 +277,10 @@ function DashboardContent() {
   }, [aiExplanation, stats]);
 
   const handleAiSearch = async (query: string) => {
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
+
     setAiSearchLoading(true);
     setLoading(true);
     try {
@@ -272,6 +288,7 @@ function DashboardContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -290,12 +307,15 @@ function DashboardContent() {
         setToast("AI search unavailable — showing text search results");
       }
     } catch (err) {
+      if ((err as Error).name === "AbortError") return;
       const message = err instanceof Error ? err.message : "AI search failed";
       setToast(message);
       // Don't clear AI mode on error — let user retry
     } finally {
-      setAiSearchLoading(false);
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setAiSearchLoading(false);
+        setLoading(false);
+      }
     }
   };
 

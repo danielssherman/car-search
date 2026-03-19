@@ -54,8 +54,8 @@ export function calculateQualityScore(
   let pkgCount = 0;
   try {
     pkgCount = JSON.parse(vehicle.packages || "[]").length;
-  } catch {
-    /* empty */
+  } catch (err) {
+    console.warn(`[Scoring] Bad packages JSON: ${(err as Error).message}`);
   }
   score += Math.min(10, pkgCount * 2);
 

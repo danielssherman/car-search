@@ -92,6 +92,7 @@ describe("parseDDCInventory", () => {
       expect(v.exterior_color).toBe("Alpine White");
       expect(v.interior_color).toBe("Black");
       expect(v.msrp).toBe(72000);
+      expect(v.asking_price).toBe(70000);
       expect(v.source).toBe("dealer_ddc");
       expect(v.dealer_name).toBe("Test BMW");
       expect(v.dealer_city).toBe("San Jose");
@@ -159,7 +160,7 @@ describe("parseDDCInventory", () => {
   // Price fallback chain
   // -----------------------------------------------------------------------
   describe("price fallback chain", () => {
-    it("uses msrp when present", () => {
+    it("separates msrp from asking_price when both present", () => {
       const data = wrapInventory([
         makeDDCItem({
           trackingPricing: {
@@ -171,9 +172,10 @@ describe("parseDDCInventory", () => {
       ]);
       const result = parseDDCInventory(data, TEST_DEALER);
       expect(result[0].msrp).toBe(72000);
+      expect(result[0].asking_price).toBe(70000);
     });
 
-    it("falls back to askingPrice when msrp is missing", () => {
+    it("sets asking_price from askingPrice when msrp is missing", () => {
       const data = wrapInventory([
         makeDDCItem({
           trackingPricing: {
@@ -183,10 +185,11 @@ describe("parseDDCInventory", () => {
         }),
       ]);
       const result = parseDDCInventory(data, TEST_DEALER);
-      expect(result[0].msrp).toBe(70000);
+      expect(result[0].msrp).toBe(0);
+      expect(result[0].asking_price).toBe(70000);
     });
 
-    it("falls back to internetPrice when msrp and askingPrice are missing", () => {
+    it("sets asking_price from internetPrice when askingPrice is missing", () => {
       const data = wrapInventory([
         makeDDCItem({
           trackingPricing: {
@@ -195,50 +198,56 @@ describe("parseDDCInventory", () => {
         }),
       ]);
       const result = parseDDCInventory(data, TEST_DEALER);
-      expect(result[0].msrp).toBe(69500);
+      expect(result[0].msrp).toBe(0);
+      expect(result[0].asking_price).toBe(69500);
     });
 
-    it("falls back to salePrice when msrp/askingPrice/internetPrice are missing", () => {
+    it("sets asking_price from salePrice when askingPrice/internetPrice are missing", () => {
       const data = wrapInventory([
         makeDDCItem({
           trackingPricing: { salePrice: "68000" },
         }),
       ]);
       const result = parseDDCInventory(data, TEST_DEALER);
-      expect(result[0].msrp).toBe(68000);
+      expect(result[0].msrp).toBe(0);
+      expect(result[0].asking_price).toBe(68000);
     });
 
-    it("falls back to pricing.retailPrice when trackingPricing is empty", () => {
+    it("uses retailPrice as msrp when trackingPricing is empty", () => {
       const item = makeDDCItem({ trackingPricing: {} });
       (item as Record<string, unknown>).pricing = { retailPrice: "$67,500" };
       const data = wrapInventory([item]);
       const result = parseDDCInventory(data, TEST_DEALER);
       expect(result[0].msrp).toBe(67500);
+      expect(result[0].asking_price).toBe(67500); // falls back to msrp
     });
 
-    it("falls back to pricing.dprice[0].value as last resort", () => {
+    it("sets asking_price from dprice when no other prices available", () => {
       const item = makeDDCItem({ trackingPricing: {} });
       (item as Record<string, unknown>).pricing = {
         dprice: [{ value: "$66,000" }],
       };
       const data = wrapInventory([item]);
       const result = parseDDCInventory(data, TEST_DEALER);
-      expect(result[0].msrp).toBe(66000);
+      expect(result[0].msrp).toBe(0);
+      expect(result[0].asking_price).toBe(66000);
     });
 
-    it("returns 0 when all pricing fields are missing", () => {
+    it("returns 0 for both when all pricing fields are missing", () => {
       const item = makeDDCItem({ trackingPricing: {} });
       const data = wrapInventory([item]);
       const result = parseDDCInventory(data, TEST_DEALER);
       expect(result[0].msrp).toBe(0);
+      expect(result[0].asking_price).toBe(0);
     });
 
-    it("returns 0 when trackingPricing is missing entirely and no pricing object", () => {
+    it("returns 0 for both when trackingPricing is missing entirely", () => {
       const item = makeDDCItem();
       delete (item as Record<string, unknown>).trackingPricing;
       const data = wrapInventory([item]);
       const result = parseDDCInventory(data, TEST_DEALER);
       expect(result[0].msrp).toBe(0);
+      expect(result[0].asking_price).toBe(0);
     });
 
     it("strips non-numeric characters from price strings (e.g. $72,000)", () => {
@@ -249,9 +258,10 @@ describe("parseDDCInventory", () => {
       ]);
       const result = parseDDCInventory(data, TEST_DEALER);
       expect(result[0].msrp).toBe(72000);
+      expect(result[0].asking_price).toBe(72000); // falls back to msrp
     });
 
-    it("falls back to askingPrice when msrp is '0'", () => {
+    it("uses askingPrice when msrp is '0'", () => {
       const data = wrapInventory([
         makeDDCItem({
           trackingPricing: {
@@ -261,8 +271,8 @@ describe("parseDDCInventory", () => {
         }),
       ]);
       const result = parseDDCInventory(data, TEST_DEALER);
-      // parseInt("0") = 0, which is falsy, so falls through
-      expect(result[0].msrp).toBe(65000);
+      expect(result[0].msrp).toBe(0);
+      expect(result[0].asking_price).toBe(65000);
     });
   });
 

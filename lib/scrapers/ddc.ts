@@ -1,142 +1,12 @@
 import { chromium, type Browser } from "playwright";
 import type { ScrapedVehicle } from "../types";
 import type { ScraperModule, ScraperConfig } from "./types";
+import { loadDDCDealers, type DDCDealerConfig } from "./dealer-config";
+
+export type { DDCDealerConfig } from "./dealer-config";
 
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-
-interface DDCDealerConfig {
-  name: string;
-  city: string;
-  baseUrl: string;
-  searchUrl: string;
-  defaultMake: string;
-  timeout: number;
-}
-
-export const DDC_DEALERS: DDCDealerConfig[] = [
-  {
-    name: "Stevens Creek BMW",
-    city: "San Jose",
-    baseUrl: "https://www.stevenscreekbmw.com",
-    searchUrl: "https://www.stevenscreekbmw.com/new-inventory/index.htm",
-    defaultMake: "BMW",
-    timeout: 30000,
-  },
-  {
-    name: "BMW of Fremont",
-    city: "Fremont",
-    baseUrl: "https://www.bmwoffremont.com",
-    searchUrl: "https://www.bmwoffremont.com/new-inventory/index.htm",
-    defaultMake: "BMW",
-    timeout: 30000,
-  },
-  {
-    name: "BMW of San Rafael",
-    city: "San Rafael",
-    baseUrl: "https://www.bmwofsanrafael.com",
-    searchUrl: "https://www.bmwofsanrafael.com/new-inventory/index.htm",
-    defaultMake: "BMW",
-    timeout: 30000,
-  },
-  {
-    name: "BMW of Mountain View",
-    city: "Mountain View",
-    baseUrl: "https://www.bmwofmountainview.com",
-    searchUrl: "https://www.bmwofmountainview.com/new-inventory/index.htm",
-    defaultMake: "BMW",
-    timeout: 30000,
-  },
-  {
-    name: "Mercedes-Benz of Stevens Creek",
-    city: "San Jose",
-    baseUrl: "https://www.mbofstevenscreek.com",
-    searchUrl: "https://www.mbofstevenscreek.com/new-inventory/index.htm",
-    defaultMake: "Mercedes-Benz",
-    timeout: 30000,
-  },
-  {
-    name: "Lexus Stevens Creek",
-    city: "San Jose",
-    baseUrl: "https://www.lexusstevenscreek.com",
-    searchUrl: "https://www.lexusstevenscreek.com/new-inventory/index.htm",
-    defaultMake: "Lexus",
-    timeout: 30000,
-  },
-  {
-    name: "Land Rover Marin",
-    city: "Corte Madera",
-    baseUrl: "https://www.landrovermarin.com",
-    searchUrl: "https://www.landrovermarin.com/new-inventory/index.htm",
-    defaultMake: "Land Rover",
-    timeout: 30000,
-  },
-  {
-    name: "Jaguar Marin",
-    city: "Corte Madera",
-    baseUrl: "https://www.jaguarmarin.com",
-    searchUrl: "https://www.jaguarmarin.com/new-inventory/index.htm",
-    defaultMake: "Jaguar",
-    timeout: 30000,
-  },
-  {
-    name: "MINI of Stevens Creek",
-    city: "Santa Clara",
-    baseUrl: "https://www.miniofstevenscreek.com",
-    searchUrl: "https://www.miniofstevenscreek.com/new-inventory/index.htm",
-    defaultMake: "MINI",
-    timeout: 30000,
-  },
-  {
-    name: "Volvo Cars Walnut Creek",
-    city: "Walnut Creek",
-    baseUrl: "https://www.volvocarswalnutcreek.com",
-    searchUrl: "https://www.volvocarswalnutcreek.com/new-inventory/index.htm",
-    defaultMake: "Volvo",
-    timeout: 30000,
-  },
-  {
-    name: "Putnam Cadillac",
-    city: "Burlingame",
-    baseUrl: "https://www.putnamcadillac.com",
-    searchUrl: "https://www.putnamcadillac.com/new-inventory/index.htm",
-    defaultMake: "Cadillac",
-    timeout: 30000,
-  },
-  // Session 2 additions (2026-03-18)
-  {
-    name: "Mercedes-Benz of Marin",
-    city: "San Rafael",
-    baseUrl: "https://www.mbofmarin.com",
-    searchUrl: "https://www.mbofmarin.com/new-inventory/index.htm",
-    defaultMake: "Mercedes-Benz",
-    timeout: 30000,
-  },
-  {
-    name: "Porsche San Francisco",
-    city: "San Francisco",
-    baseUrl: "https://www.porschesanfrancisco.com",
-    searchUrl: "https://www.porschesanfrancisco.com/new-inventory/index.htm",
-    defaultMake: "Porsche",
-    timeout: 30000,
-  },
-  {
-    name: "Porsche Marin",
-    city: "Mill Valley",
-    baseUrl: "https://www.porschemarin.com",
-    searchUrl: "https://www.porschemarin.com/new-inventory/index.htm",
-    defaultMake: "Porsche",
-    timeout: 30000,
-  },
-  {
-    name: "Lexus of Fremont",
-    city: "Fremont",
-    baseUrl: "https://www.lexusfremont.com",
-    searchUrl: "https://www.lexusfremont.com/new-inventory/index.htm",
-    defaultMake: "Lexus",
-    timeout: 30000,
-  },
-];
 
 function randomDelay(min = 2000, max = 5000): Promise<void> {
   const ms = Math.floor(Math.random() * (max - min + 1)) + min;
@@ -179,17 +49,16 @@ export function parseDDCInventory(data: any, dealer: DDCDealerConfig): ScrapedVe
         getTrackingAttr(trackAttrs, "interiorColor") ||
         "Unknown";
 
-      let msrp = 0;
       const tp = item.trackingPricing;
       const parsePrice = (v: unknown) =>
         v ? parseInt(String(v).replace(/[^0-9]/g, "")) || 0 : 0;
 
-      msrp = parsePrice(tp?.msrp)
-        || parsePrice(tp?.askingPrice)
+      const msrp = parsePrice(tp?.msrp) || parsePrice(item.pricing?.retailPrice) || 0;
+      const askingPrice = parsePrice(tp?.askingPrice)
         || parsePrice(tp?.internetPrice)
         || parsePrice(tp?.salePrice)
-        || parsePrice(item.pricing?.retailPrice)
-        || parsePrice(item.pricing?.dprice?.[0]?.value);
+        || parsePrice(item.pricing?.dprice?.[0]?.value)
+        || msrp;
 
       const bodyStyle =
         attrs.find((a) => a.name === "bodyStyle")?.value ||
@@ -235,6 +104,7 @@ export function parseDDCInventory(data: any, dealer: DDCDealerConfig): ScrapedVe
           .replace(/ Metallic$/, " Metallic"),
         interior_color: intColor.replace(/ Interior$/, ""),
         msrp,
+        asking_price: askingPrice,
         source: "dealer_ddc",
         dealer_name: dealer.name,
         dealer_city: dealer.city,
@@ -243,7 +113,8 @@ export function parseDDCInventory(data: any, dealer: DDCDealerConfig): ScrapedVe
         stock_number: stockNumber,
         detail_url: detailUrl,
       });
-    } catch {
+    } catch (err) {
+      console.warn(`[DDC:parse] Skipped item for ${dealer.name}: ${(err as Error).message}`);
       continue;
     }
   }
@@ -269,7 +140,8 @@ export function parseCosmosInventory(data: any, dealer: DDCDealerConfig): Scrape
       const trim = vc.VehicleTrim || vc.VehicleRuleAdjustedTrim || model;
       if (!model && !trim) continue;
 
-      const msrp = vc.TaggingPrice || vc.VehicleMsrp || vc.VehicleInternetPrice || 0;
+      const msrp = vc.VehicleMsrp || 0;
+      const askingPrice = vc.TaggingPrice || vc.VehicleInternetPrice || msrp;
 
       vehicles.push({
         vin,
@@ -288,15 +160,19 @@ export function parseCosmosInventory(data: any, dealer: DDCDealerConfig): Scrape
         interior_color: (vc.InteriorColorLabel || "Unknown")
           .replace(/ Interior$/, ""),
         msrp,
+        asking_price: askingPrice,
         source: "dealer_ddc",
         dealer_name: dealer.name,
         dealer_city: dealer.city,
         status: vc.VehicleInTransit ? "In Transit" : "In Stock",
-        packages: vc.Features || [],
+        packages: ((vc.Features || []) as string[]).filter((f: string) =>
+          /package|edition|kit|option/i.test(f)
+        ),
         stock_number: vc.VehicleStockNumber || "",
         detail_url: vc.VehicleDetailUrl || `${dealer.baseUrl}/new-inventory/index.htm?search=${vin}`,
       });
-    } catch {
+    } catch (err) {
+      console.warn(`[Cosmos:parse] Skipped item for ${dealer.name}: ${(err as Error).message}`);
       continue;
     }
   }
@@ -362,8 +238,8 @@ async function scrapeDealer(
             totalCount = data.pageInfo.totalCount;
           }
         }
-      } catch {
-        /* empty */
+      } catch (err) {
+        console.warn(`[DDC:response] Failed to parse getInventory for ${dealer.name}: ${(err as Error).message}`);
       }
     }
     // Cosmos API
@@ -382,8 +258,8 @@ async function scrapeDealer(
         if (paging?.TotalCount) {
           totalCount = paging.TotalCount;
         }
-      } catch {
-        /* empty */
+      } catch (err) {
+        console.warn(`[Cosmos:response] Failed to parse response for ${dealer.name}: ${(err as Error).message}`);
       }
     }
   });
@@ -535,6 +411,7 @@ const ddcScraper: ScraperModule = {
   async scrape(_config: ScraperConfig): Promise<ScrapedVehicle[]> {
     const allVehicles = new Map<string, ScrapedVehicle>();
     let browser: Browser | null = null;
+    const dealers = loadDDCDealers();
 
     try {
       browser = await chromium.launch({
@@ -548,9 +425,9 @@ const ddcScraper: ScraperModule = {
 
       const browserRef = browser;
 
-      console.log(`[DDC] Scraping ${DDC_DEALERS.length} dealers with concurrency ${DDC_CONCURRENCY}...`);
+      console.log(`[DDC] Scraping ${dealers.length} dealers with concurrency ${DDC_CONCURRENCY}...`);
 
-      await runWithConcurrency(DDC_DEALERS, DDC_CONCURRENCY, async (dealer) => {
+      await runWithConcurrency(dealers, DDC_CONCURRENCY, async (dealer) => {
         console.log(`[DDC] Scraping ${dealer.name}...`);
         try {
           const vehicles = await scrapeDealer(browserRef, dealer);

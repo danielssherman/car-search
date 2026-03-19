@@ -1,41 +1,7 @@
 import type { ScrapedVehicle } from "../types";
 import type { ScraperModule, ScraperConfig } from "./types";
 import { parseAlgoliaHits } from "./algolia-parser";
-
-interface AlgoliaDealerConfig {
-  name: string;
-  city: string;
-  baseUrl: string;
-  defaultMake: string;
-  appId: string;
-  apiKey: string;
-  indexName: string;
-}
-
-function getAlgoliaDealers(): AlgoliaDealerConfig[] {
-  const appId = process.env.ALGOLIA_APP_ID || "";
-  const apiKey = process.env.ALGOLIA_API_KEY || "";
-  return [
-    {
-      name: "Peter Pan BMW",
-      city: "San Mateo",
-      baseUrl: "https://www.peterpanbmw.com",
-      defaultMake: "BMW",
-      appId,
-      apiKey,
-      indexName: "peterpanbmw-sbm0125_production_inventory",
-    },
-    {
-      name: "BMW of San Francisco",
-      city: "San Francisco",
-      baseUrl: "https://www.bmwsf.com",
-      defaultMake: "BMW",
-      appId,
-      apiKey,
-      indexName: "bmwofsanfrancisco_production_inventory",
-    },
-  ];
-}
+import { loadAlgoliaDealers, type AlgoliaDealerConfig } from "./dealer-config";
 
 async function scrapeAlgoliaDealer(
   dealer: AlgoliaDealerConfig
@@ -105,7 +71,7 @@ const algoliaScraper: ScraperModule = {
   async scrape(_config: ScraperConfig): Promise<ScrapedVehicle[]> {
     const allVehicles: ScrapedVehicle[] = [];
 
-    const dealers = getAlgoliaDealers();
+    const dealers = loadAlgoliaDealers();
     for (const dealer of dealers) {
       console.log(`[Algolia] Scraping ${dealer.name}...`);
       try {

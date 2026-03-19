@@ -34,6 +34,7 @@ function migrateSchema(database: Database.Database): void {
     { name: "mileage", def: "INTEGER DEFAULT 0" },
     { name: "condition", def: "TEXT DEFAULT 'New'" },
     { name: "quality_score", def: "INTEGER DEFAULT 50" },
+    { name: "re_listed_at", def: "DATETIME" },
   ];
 
   for (const col of newColumns) {
@@ -596,6 +597,14 @@ export function upsertVehicles(vehicles: ScrapedVehicle[]): {
       exterior_color = excluded.exterior_color,
       interior_color = excluded.interior_color,
       last_seen = excluded.last_seen,
+      first_seen = CASE
+        WHEN vehicles.removed_at IS NOT NULL THEN excluded.first_seen
+        ELSE vehicles.first_seen
+      END,
+      re_listed_at = CASE
+        WHEN vehicles.removed_at IS NOT NULL THEN excluded.last_seen
+        ELSE vehicles.re_listed_at
+      END,
       removed_at = NULL
   `);
 
@@ -641,7 +650,7 @@ export function upsertVehicles(vehicles: ScrapedVehicle[]): {
         v.exterior_color, v.interior_color, now, now
       );
 
-      const price = v.msrp; // Current scrapers use msrp as the asking price
+      const price = v.asking_price || v.msrp; // Use asking price, fall back to MSRP
 
       // 2. Check existing listing for price change
       const existing = checkListingStmt.get(v.vin, v.source, v.dealer_name) as
@@ -669,7 +678,7 @@ export function upsertVehicles(vehicles: ScrapedVehicle[]): {
       // 4. Upsert listing
       upsertListingStmt.run(
         v.vin, v.source, v.dealer_name, v.dealer_city,
-        price, price, // price and msrp are the same for now
+        price, v.msrp || price,
         v.status, v.detail_url, v.stock_number,
         JSON.stringify(v.packages), now, now, now, now
       );
