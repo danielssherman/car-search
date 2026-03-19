@@ -6,6 +6,7 @@ import { formatCurrency, daysOnLot } from "@/lib/utils";
 import { StatusBadge } from "./StatusBadge";
 import { VehicleCard } from "./VehicleCard";
 import { ExternalLink, ArrowUpDown } from "lucide-react";
+import { PriceTrendBadge } from "./PriceTrendBadge";
 
 type SortKey =
   | "make"
@@ -214,7 +215,13 @@ export function InventoryTable({
                   <td className="px-4 py-3">{vehicle.year}</td>
                   <td className="px-4 py-3">{vehicle.exterior_color}</td>
                   <td className="px-4 py-3 font-medium tabular-nums">
-                    {formatCurrency(vehicle.price)}
+                    <span className="inline-flex items-center gap-1.5">
+                      {formatCurrency(vehicle.price)}
+                      <PriceTrendBadge
+                        trend={vehicle.price_trend}
+                        amount={vehicle.price_change_amount}
+                      />
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-sm">{vehicle.dealer_name}</td>
                   <td className="px-4 py-3 text-sm">{vehicle.dealer_city}</td>

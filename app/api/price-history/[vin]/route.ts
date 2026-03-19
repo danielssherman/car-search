@@ -17,10 +17,28 @@ export async function GET(
     }
 
     const history = getPriceHistory(vin);
+    const prices = history.map((h) => h.price);
+    const uniquePrices = new Set(prices).size;
+
+    const summary = history.length > 0
+      ? {
+          has_changes: uniquePrices > 1,
+          change_count: history.filter((h, i) => i > 0 && h.price !== history[i - 1].price).length,
+          first_price: history[0].price,
+          latest_price: history[history.length - 1].price,
+          min_price: Math.min(...prices),
+          max_price: Math.max(...prices),
+          total_change: history[history.length - 1].price - history[0].price,
+          first_recorded: history[0].recorded_at,
+          latest_recorded: history[history.length - 1].recorded_at,
+        }
+      : null;
+
     return NextResponse.json({
       vin,
       total: history.length,
       history,
+      summary,
     });
   } catch (err) {
     console.error("Error fetching price history:", err);

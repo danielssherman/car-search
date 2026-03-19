@@ -27,6 +27,10 @@ export interface Vehicle {
   stock_number: string;
   packages: string; // JSON array of package names
   listing_count: number;
+  // From price_trends CTE (JOIN)
+  price_trend: 'up' | 'down' | 'stable' | null;
+  price_change_amount: number | null;
+  price_change_date: string | null;
 }
 
 export interface Listing {
@@ -112,6 +116,25 @@ export interface DealerInfo {
   dealer_name: string;
   dealer_city: string;
   vehicle_count: number;
+}
+
+export interface PriceHistorySummary {
+  has_changes: boolean;
+  change_count: number;
+  first_price: number;
+  latest_price: number;
+  min_price: number;
+  max_price: number;
+  total_change: number;
+  first_recorded: string;
+  latest_recorded: string;
+}
+
+export interface PriceHistoryResponse {
+  vin: string;
+  total: number;
+  history: PriceHistory[];
+  summary: PriceHistorySummary | null;
 }
 
 export interface ScrapedVehicle {

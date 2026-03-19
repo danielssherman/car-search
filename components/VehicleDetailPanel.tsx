@@ -5,6 +5,8 @@ import type { Vehicle, Listing } from "@/lib/types";
 import { formatCurrency, daysOnLot } from "@/lib/utils";
 import { StatusBadge } from "./StatusBadge";
 import { X, ExternalLink, Package } from "lucide-react";
+import { PriceTrendBadge } from "./PriceTrendBadge";
+import { PriceHistorySection } from "./PriceHistorySection";
 
 interface VehicleDetailPanelProps {
   vin: string;
@@ -199,6 +201,11 @@ export function VehicleDetailPanel({ vin, onClose }: VehicleDetailPanelProps) {
                       {formatCurrency(vehicle.msrp)}
                     </span>
                   )}
+                  <PriceTrendBadge
+                    trend={vehicle.price_trend}
+                    amount={vehicle.price_change_amount}
+                    size="full"
+                  />
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <span>{vehicle.dealer_name}</span>
@@ -214,6 +221,9 @@ export function VehicleDetailPanel({ vin, onClose }: VehicleDetailPanelProps) {
                   )}
                 </div>
               </div>
+
+              {/* 2.5. Price History */}
+              <PriceHistorySection vin={vehicle.vin} currentPrice={vehicle.price} />
 
               {/* 3. Specs grid */}
               <div>

@@ -4,6 +4,7 @@ import type { Vehicle } from "@/lib/types";
 import { formatCurrency, daysOnLot } from "@/lib/utils";
 import { StatusBadge } from "./StatusBadge";
 import { ExternalLink } from "lucide-react";
+import { PriceTrendBadge } from "./PriceTrendBadge";
 
 function ScoreBadge({ score }: { score: number }) {
   let color = "text-bmw-muted bg-bmw-border/50";
@@ -86,8 +87,12 @@ export function VehicleCard({
 
       <div className="mt-3 flex items-center justify-between">
         <div>
-          <span className="text-xl font-bold">
+          <span className="inline-flex items-center gap-1.5 text-xl font-bold">
             {formatCurrency(vehicle.price)}
+            <PriceTrendBadge
+              trend={vehicle.price_trend}
+              amount={vehicle.price_change_amount}
+            />
           </span>
           {days > 0 && (
             <span className="ml-2 text-xs text-bmw-muted">

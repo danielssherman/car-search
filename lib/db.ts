@@ -220,6 +220,18 @@ const LISTING_COUNTS_CTE = `
     GROUP BY vin
   )`;
 
+const PRICE_TRENDS_CTE = `
+  price_trends AS (
+    SELECT vin, price, recorded_at,
+      LAG(price) OVER (PARTITION BY vin ORDER BY recorded_at) as prev_price,
+      ROW_NUMBER() OVER (PARTITION BY vin ORDER BY recorded_at DESC) as rn
+    FROM (
+      SELECT MIN(id) as id, vin, price, recorded_at
+      FROM price_history
+      GROUP BY vin, price, recorded_at
+    )
+  )`;
+
 const VEHICLE_COLUMNS = `
     v.vin, v.year, v.make, v.model, v.trim, v.body_style, v.drivetrain,
     v.engine, v.fuel_type, v.mileage, v.condition, v.exterior_color, v.interior_color,
@@ -233,7 +245,18 @@ const VEHICLE_COLUMNS = `
     COALESCE(bl.detail_url, '') as detail_url,
     COALESCE(bl.stock_number, '') as stock_number,
     COALESCE(bl.packages, '[]') as packages,
-    COALESCE(lc.listing_count, 0) as listing_count`;
+    COALESCE(lc.listing_count, 0) as listing_count,
+    CASE
+      WHEN pt.prev_price IS NULL THEN 'stable'
+      WHEN pt.price < pt.prev_price THEN 'down'
+      WHEN pt.price > pt.prev_price THEN 'up'
+      ELSE 'stable'
+    END as price_trend,
+    CASE
+      WHEN pt.prev_price IS NOT NULL THEN ABS(pt.price - pt.prev_price)
+      ELSE NULL
+    END as price_change_amount,
+    pt.recorded_at as price_change_date`;
 
 /**
  * Build a full vehicle query using CTEs for best listing and listing counts.
@@ -242,11 +265,13 @@ const VEHICLE_COLUMNS = `
 function buildVehicleQuery(): string {
   return `
   WITH ${BEST_LISTINGS_CTE},
-  ${LISTING_COUNTS_CTE}
+  ${LISTING_COUNTS_CTE},
+  ${PRICE_TRENDS_CTE}
   SELECT ${VEHICLE_COLUMNS}
   FROM vehicles v
   LEFT JOIN best_listings bl ON bl.vin = v.vin AND bl.rn = 1
-  LEFT JOIN listing_counts lc ON lc.vin = v.vin`;
+  LEFT JOIN listing_counts lc ON lc.vin = v.vin
+  LEFT JOIN price_trends pt ON pt.vin = v.vin AND pt.rn = 1`;
 }
 
 /**
@@ -393,7 +418,9 @@ export function getPriceHistory(vin: string): PriceHistory[] {
   const db = getDb();
   return db
     .prepare(
-      "SELECT * FROM price_history WHERE vin = ? ORDER BY recorded_at ASC"
+      `SELECT id, vin, source, dealer_name, price, recorded_at
+       FROM price_history WHERE vin = ?
+       ORDER BY id ASC`
     )
     .all(vin) as PriceHistory[];
 }
