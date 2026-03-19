@@ -27,8 +27,8 @@ describe("loadDDCDealers", () => {
     const names = dealers.map((d) => d.name);
     // East Bay BMW is status: "blocked" in dealers.json
     expect(names).not.toContain("East Bay BMW");
-    // Audi San Jose is status: "unsupported"
-    expect(names).not.toContain("Audi San Jose");
+    // Mercedes-Benz of San Francisco is status: "unsupported" (Dealer.com platform)
+    expect(names).not.toContain("Mercedes-Benz of San Francisco");
   });
 
   it("does not include Algolia dealers", () => {

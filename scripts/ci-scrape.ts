@@ -3,6 +3,11 @@ import { runScrape } from "../lib/cron";
 import { getDb } from "../lib/db";
 
 async function main() {
+  // Random delay 0-30 minutes to avoid predictable scrape timing
+  const jitterMs = Math.floor(Math.random() * 30 * 60 * 1000);
+  console.log(`[CI] Jitter delay: ${Math.round(jitterMs / 1000)}s before starting scrape`);
+  await new Promise((resolve) => setTimeout(resolve, jitterMs));
+
   console.log(`[CI] Starting scrape at ${new Date().toISOString()}`);
 
   try {

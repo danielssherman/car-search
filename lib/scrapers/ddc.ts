@@ -5,8 +5,31 @@ import { loadDDCDealers, type DDCDealerConfig } from "./dealer-config";
 
 export type { DDCDealerConfig } from "./dealer-config";
 
-const USER_AGENT =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+// Pool of current Chrome UA strings — rotated per dealer to vary fingerprint
+const USER_AGENTS = [
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+];
+
+const VIEWPORTS = [
+  { width: 1920, height: 1080 },
+  { width: 1536, height: 864 },
+  { width: 1440, height: 900 },
+  { width: 1366, height: 768 },
+  { width: 1280, height: 720 },
+];
+
+function getRandomUA(): string {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
+function getRandomViewport(): { width: number; height: number } {
+  return VIEWPORTS[Math.floor(Math.random() * VIEWPORTS.length)];
+}
 
 function randomDelay(min = 2000, max = 5000): Promise<void> {
   const ms = Math.floor(Math.random() * (max - min + 1)) + min;
@@ -188,8 +211,8 @@ async function scrapeDealer(
   const timeout = dealer.timeout || 30000;
 
   const context = await browser.newContext({
-    userAgent: USER_AGENT,
-    viewport: { width: 1920, height: 1080 },
+    userAgent: getRandomUA(),
+    viewport: getRandomViewport(),
     locale: "en-US",
     timezoneId: "America/Los_Angeles",
   });
@@ -456,7 +479,7 @@ const ddcScraper: ScraperModule = {
         } catch (err) {
           console.error(`[DDC] ${dealer.name} failed: ${(err as Error).message}`);
         }
-        await randomDelay(2000, 4000);
+        await randomDelay(3000, 8000);
       });
     } finally {
       if (browser) await browser.close();
