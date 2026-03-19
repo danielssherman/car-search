@@ -180,13 +180,13 @@ Short imperative subject line. Group related changes (e.g., "Add Cars.com scrape
 |-------|--------|-------------|
 | 1. Core Tracker | COMPLETE | SQLite, DDC+Algolia scrapers, dashboard, quality scores, comparison |
 | 2. Multi-Source Pipeline | COMPLETE | Listings model split, scraper worker pattern, Cars.com + CarGurus scrapers (built but blocked by bot protection in CI), GitHub Actions cron every 6h with R2 persistence |
-| 3. Dealer Intelligence | NOT STARTED | Price trend analysis, negotiation room estimator, dealer scoring. Requires 2-3 months of price_history data (accumulating since 2026-03-12) |
-| 4. Scale to 400+ Dealers | IN PROGRESS | Multi-make expansion started (7 makes, 12 dealers). Remaining: platform auto-detection agent, dealer config in DB, batch onboarding |
-| 5. Infrastructure | PARTIALLY STARTED | GitHub Actions cron + R2 done. Remaining: BullMQ job queue, Redis caching, rate limiting, Turso migration |
-| 6. Smart Alerts | NOT STARTED | Price drop notifications, new inventory alerts |
+| 3. Dealer Intelligence | IN PROGRESS | Price history UI done (Session 33). Negotiation room estimator + dealer scoring need 2-3 months of price_history data (accumulating since 2026-03-12, ~1 week so far, 44 price changes detected). Time-gated, not effort-gated. |
+| 4. Scale to 400+ Dealers | IN PROGRESS | 17 dealers active, 9 makes. Dealer config externalized to JSON. Platform detection script built. 37 dealers cataloged. Next: probe unsupported dealers, onboard DDC/Cosmos/Algolia matches, build Dealer.com scraper for remaining. |
+| 5. Infrastructure | PARTIALLY STARTED | GitHub Actions cron + R2 done. Scrape health dashboard done (Session 34). DDC Classic waitForResponse fix (Session 34). Remaining: materialize price_trend column (perf), BullMQ job queue, Redis caching, Turso migration |
+| 6. Smart Alerts | NOT STARTED | Price drop notifications, new inventory alerts. Lightweight start: "Recent Price Drops" UI section using existing `getPriceDrops()` function. |
 | 7. Public Product | NOT STARTED | Auth, hosted DB, embedded chat (optional) |
 
-**Critical path insight:** Phase 3 depends on accumulated price history. Automated scraping has been running every 6h since 2026-03-12 via GitHub Actions.
+**Critical path insight:** Phase 3 is time-gated — needs 2-3 months of price_history accumulation (started 2026-03-12). Phase 4 dealer scaling is the highest-leverage near-term work.
 
 ---
 
@@ -201,6 +201,9 @@ Short imperative subject line. Group related changes (e.g., "Add Cars.com scrape
 - ~~**`first_seen` stale on re-listing**~~ — FIXED (Session 32). `upsertVehicle` ON CONFLICT now resets `first_seen` and sets `re_listed_at` when a previously-removed vehicle reappears.
 - ~~**Cosmos `packages` inflated**~~ — FIXED (Session 32). `parseCosmosInventory` now filters `vc.Features` to only include items matching /package|edition|kit|option/i, normalizing quality scores vs Classic DDC.
 - **No tests for `parseCosmosInventory`** — exported function but no unit tests. Tech debt from Session 31.
+- **Flaky re-listing test** — `resets first_seen and sets re_listed_at when a removed vehicle reappears` fails intermittently when insert and re-list happen in same millisecond. Needs a small delay or mock.
+- **PRICE_TRENDS_CTE performance** — adds ~330ms to every `getVehicles()` call by scanning all price_history rows. Will worsen as data grows. Fix: materialize `price_trend` as a column on vehicles, updated during `updateQualityScores()`.
+- **No tests for price history UI components** — PriceHistoryChart, PriceHistorySection, PriceTrendBadge have no unit tests. CTE correctness also untested.
 
 ---
 
@@ -210,8 +213,9 @@ _Revisit these as the project evolves. Not blocking current work._
 
 ### Scraper Coverage
 - ~~**Expand beyond BMW**~~ — DONE (Session 29). 7 makes, 12 dealers. Architecture was already multi-make ready; only config changes needed.
-- **Lexus Stevens Creek** — DDC confirmed but scrape returned 0 vehicles. Search URL path may differ from `/new-inventory/index.htm`. Needs manual investigation.
-- **More Bay Area dealers** — Audi, Porsche, Mercedes SF not yet added. Many dealer sites block automated WebFetch (403/SSL errors). Need manual Chrome DevTools inspection to find URLs and confirm platform.
+- ~~**Lexus Stevens Creek**~~ — FIXED (Session 31). Detected as Cosmos API.
+- **More Bay Area dealers** — 20 dealers cataloged but unsupported (Audi x4, Porsche x2, Lexus x3, Land Rover x2, Jaguar, Volvo, Mercedes x3, Genesis x2). Most are Dealer.com (Cox Automotive) or unknown platform. Need manual Chrome DevTools inspection to confirm platforms. DDC/Cosmos/Algolia matches can be onboarded immediately; Dealer.com needs a new scraper.
+- **Dealer.com scraper** — 5+ Bay Area dealers use Dealer.com (Cox Automotive): MB SF, MB Walnut Creek, Autobahn Motors, Audi San Jose, Lexus Serramonte. Building a Dealer.com scraper would unlock these. API pattern needs investigation via Chrome DevTools.
 - **Cars.com** — scraper built (`lib/scrapers/carscom.ts`) but Cars.com hard-blocks GitHub Actions IPs (90s timeout, not a solvable Cloudflare challenge). Works locally. Options: residential proxy ($5-15/mo), self-hosted runner, or accept limitation.
 - **CarGurus** — scraper built (`lib/scrapers/cargurus.ts`) but DataDome CAPTCHA blocks headless browsers in CI (returns 403 + captcha-delivery.com). Disabled in registry. Would need `playwright-extra` stealth plugin or residential proxy.
 - **East Bay BMW** (Pleasanton) — Akamai bot manager blocks all automated access. Would need stealth plugin or residential proxy.
@@ -227,7 +231,9 @@ _Revisit these as the project evolves. Not blocking current work._
 - ~~**Vehicle detail panel**~~ — DONE (Session 29). Click row → slide-over panel with specs, packages, all listings.
 - ~~**Pagination**~~ — DONE (Session 29). 50 per page, prev/next, `countVehicles()` + `buildFilterConditions()` helper.
 - ~~**Price history visualization**~~ — DONE (Session 33). SVG step-line chart in detail panel, PriceTrendBadge in table/cards, PriceHistorySection with empty state handling. PRICE_TRENDS_CTE computes trend via LAG() window function.
-- **Smart alerts** — Phase 6: price drop notifications, new inventory alerts.
+- **Smart alerts** — Phase 6: price drop notifications, new inventory alerts. Lightweight start: "Recent Price Drops" dashboard section using existing `getPriceDrops()` DB function.
+- **Scrape health dashboard** — DONE (Session 34). ScrapeHealthBar with 4 color-coded health cards, per-source health API.
+- **DDC Classic waitForResponse fix** — DONE (Session 34). Replaced fixed 8s timeout with `waitForResponse` for reliable local+CI behavior.
 
 ### Data Quality
 - ~~**$0 price bug**~~ — FIXED (Session 28). DDC API intermittently returns empty pricing. Parser now checks 6 price fields. Upsert guards against $0 overwrites. 15 listings backfilled.
@@ -239,7 +245,7 @@ _Revisit these as the project evolves. Not blocking current work._
 
 ## Current State
 
-_Last updated: 2026-03-19 (Session 33)_
+_Last updated: 2026-03-19 (Session 34)_
 
 - **Branch:** main
 - **Automated scraping:** GitHub Actions cron every 6h, SQLite DB persisted to Cloudflare R2. Working scrapers: DDC Classic (10 dealers), DDC Cosmos (5 dealers), Algolia (2 dealers). DDC parallelized at concurrency 3. ~4,800+ vehicles per run.
@@ -269,5 +275,7 @@ _Last updated: 2026-03-19 (Session 33)_
 4. ~~**Session 31: Dealer expansion (infrastructure + wave 1)**~~ — DONE. Fixed markMissingAsRemoved, parallelized DDC, added Cosmos API support, onboarded 5 dealers (Porsche x2, Lexus x2, MB Marin), fixed Lexus Stevens Creek. Platform detection script + dealer research (37 dealers cataloged).
 5. ~~**Session 32: Data quality + efficiency improvements**~~ — DONE. Externalized dealer config to JSON, separated MSRP from asking price, fixed re-listing first_seen reset, fixed Cosmos packages inflation, added scraper logging, live AI search context, AbortController on fetches, cache headers, 242 tests.
 6. ~~**Session 33: Price history UI**~~ — DONE. SVG step-line chart in detail panel, PriceTrendBadge in table/cards, enhanced price-history API with summary. Also fixed R2 DB corruption.
-7. **Session 34: Comparison redesign + MCP enrichment** — Full-screen comparison overlay, packages visibility.
-8. **Session 35: Scrape health dashboard** — Visual timeline of scrape runs, per-dealer success rates.
+7. ~~**Session 34: DDC Classic fix + Scrape health dashboard**~~ — DONE. waitForResponse fix for DDC Classic, ScrapeHealthBar component, enhanced scrape-health API with per-source summaries.
+8. **Session 35: Dealer onboarding wave 2** — Probe unsupported dealers, onboard DDC/Cosmos/Algolia matches, target 25-30 active dealers.
+9. **Session 36: Comparison redesign + price drops UI** — Full-screen comparison overlay, "Recent Price Drops" dashboard section.
+10. **Session 37: Test coverage + performance** — Materialize price_trend column, Cosmos parser tests, fix flaky re-listing test.
