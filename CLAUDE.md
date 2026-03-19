@@ -245,14 +245,14 @@ _Revisit these as the project evolves. Not blocking current work._
 
 ## Current State
 
-_Last updated: 2026-03-19 (Session 34)_
+_Last updated: 2026-03-19 (Session 35)_
 
 - **Branch:** main
-- **Automated scraping:** GitHub Actions cron every 6h, SQLite DB persisted to Cloudflare R2. Working scrapers: DDC Classic (10 dealers), DDC Cosmos (5 dealers), Algolia (2 dealers). DDC parallelized at concurrency 3. ~4,800+ vehicles per run.
-- **Multi-make expansion:** 10 makes across 17 dealers (BMW, Mercedes-Benz, Porsche, Lexus, Land Rover, Jaguar, MINI, Volvo, Cadillac). Price history accumulating since 2026-03-17.
-- **DB:** ~4,800+ vehicles across 17 dealers, 10 makes. Local DB syncs from R2 via `./scripts/sync-db.sh`. Queries use CTEs with ROW_NUMBER()/LAG() window functions. Composite indexes on listings and price_history. `markMissingAsRemoved` scoped to successfully-scraped dealers only.
-- **API hardening:** Zod input validation on all routes. New endpoints: `/api/price-history/[vin]`, `/api/scrape-health`. SCRAPE_API_KEY rotated with startup guard. Price history dedup in upsertVehicles().
-- **Dealer research:** 37 Bay Area dealers cataloged in `data/dealers.json` with platform detection results. Platform detection script at `scripts/detect-platform.ts`.
+- **Automated scraping:** GitHub Actions cron every 6h (with 0-15 min random jitter), SQLite DB persisted to Cloudflare R2. Working scrapers: DDC Classic (17 dealers), DDC Cosmos (5 dealers), Algolia (2 dealers). DDC parallelized at concurrency 3 with 3-8s inter-dealer delay. Estimated ~6,000+ vehicles per run with new dealers.
+- **Multi-make expansion:** 11 makes across 24 active dealers (BMW, Mercedes-Benz, Porsche, Lexus, Land Rover, Jaguar, MINI, Volvo, Cadillac, Audi). Price history accumulating since 2026-03-12.
+- **DB:** ~4,350+ vehicles across 24 dealers, 11 makes (7 new dealers activated Session 35 — pending first CI scrape). Local DB syncs from R2 via `./scripts/sync-db.sh`. Queries use CTEs with ROW_NUMBER()/LAG() window functions. Composite indexes on listings and price_history. `markMissingAsRemoved` scoped to successfully-scraped dealers only.
+- **API hardening:** Zod input validation on all routes. New endpoints: `/api/price-history/[vin]`, `/api/scrape-health` (enhanced with per-source health summaries). SCRAPE_API_KEY rotated with startup guard. Price history dedup in upsertVehicles().
+- **Dealer research:** 37 Bay Area dealers cataloged in `data/dealers.json` with Playwright-verified platform detection. 24 active, 4 DealerInspire (unsupported), 3 Dealer.com (unsupported), 6 blocked/unknown. Platform detection script at `scripts/detect-platform.ts`.
 - **Tests:** 242 tests via vitest (scoring: 47, DDC parser: 60, Algolia parser: 48, db queries: 44, validation: 37, dealer-config: 6). CI workflow `.github/workflows/test.yml` runs on push/PR.
 - **MCP server:** Registered and validated. 10 tools working.
 - **Dealer config:** Scrapers now read from `data/dealers.json` instead of hardcoded arrays. New dealer = JSON edit, zero code changes. Loader in `lib/scrapers/dealer-config.ts`.
@@ -264,6 +264,9 @@ _Last updated: 2026-03-19 (Session 34)_
 - **Frontend:** AbortController on all fetches prevents stale-response bugs. Cache headers on `/api/stats` and `/api/dealers`.
 - **Price history UI:** Hand-built SVG step-line chart in detail panel (no charting library). PriceTrendBadge (emerald down / red up) in inventory table and mobile cards. PriceHistorySection with chart or "Price stable since..." empty state. PRICE_TRENDS_CTE via LAG() window function in getVehicles(). Enhanced `/api/price-history/[vin]` with summary object. Client-side dedup for legacy duplicates.
 - **DB corruption fix:** R2 database was corrupted (March 17-19). Recovered by merging March 16 backup with recovered vehicles/price_history, then re-scraped. Repaired DB uploaded to R2.
+- **Scrape health dashboard:** ScrapeHealthBar with 4 color-coded cards (Last Scrape, DDC Pipeline, Algolia Pipeline, Pipeline Health). Per-source health summaries via SQL aggregation in `/api/scrape-health`. MCP tool updated to match.
+- **DDC Classic fix:** Replaced fixed 8s `waitForTimeout` with Playwright `waitForResponse` (20s max) + diagnostic logging. Resolves instantly when API response arrives.
+- **Anti-detection hardening:** UA rotation (6 current Chrome strings), viewport randomization (5 resolutions), increased inter-dealer delays (3-8s), CI scrape jitter (0-15 min random delay). Future: playwright-extra stealth plugin.
 - **Known schema issue:** `scrape_log` uses `started_at`/`completed_at`, not `created_at` — session protocol DB check query needs updating.
 - **Known performance:** `PRICE_TRENDS_CTE` adds ~330ms to `getVehicles()` by scanning all price_history. Consider materializing as a column if this becomes a bottleneck.
 
@@ -276,6 +279,6 @@ _Last updated: 2026-03-19 (Session 34)_
 5. ~~**Session 32: Data quality + efficiency improvements**~~ — DONE. Externalized dealer config to JSON, separated MSRP from asking price, fixed re-listing first_seen reset, fixed Cosmos packages inflation, added scraper logging, live AI search context, AbortController on fetches, cache headers, 242 tests.
 6. ~~**Session 33: Price history UI**~~ — DONE. SVG step-line chart in detail panel, PriceTrendBadge in table/cards, enhanced price-history API with summary. Also fixed R2 DB corruption.
 7. ~~**Session 34: DDC Classic fix + Scrape health dashboard**~~ — DONE. waitForResponse fix for DDC Classic, ScrapeHealthBar component, enhanced scrape-health API with per-source summaries.
-8. **Session 35: Dealer onboarding wave 2** — Probe unsupported dealers, onboard DDC/Cosmos/Algolia matches, target 25-30 active dealers.
-9. **Session 36: Comparison redesign + price drops UI** — Full-screen comparison overlay, "Recent Price Drops" dashboard section.
-10. **Session 37: Test coverage + performance** — Materialize price_trend column, Cosmos parser tests, fix flaky re-listing test.
+8. ~~**Session 35: Dealer onboarding wave 2 + anti-detection hardening**~~ — DONE. Activated 7 DDC Classic dealers (17→24 active, +Audi). Re-probed all blocked dealers with Playwright detection (4 confirmed DealerInspire, 1 Dealer.com, 4 blocked). Anti-detection: UA rotation, viewport randomization, inter-dealer delays, CI jitter.
+9. **Session 36: Price drops UI + comparison redesign** — "Recent Price Drops" dashboard section, full-screen comparison overlay.
+10. **Session 37: Test coverage + performance** — Materialize price_trend column, Cosmos parser tests, fix flaky re-listing test, playwright-extra stealth plugin.
