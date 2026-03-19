@@ -226,7 +226,7 @@ _Revisit these as the project evolves. Not blocking current work._
 - ~~**Register MCP server**~~ — DONE. Registered and validated.
 - ~~**Vehicle detail panel**~~ — DONE (Session 29). Click row → slide-over panel with specs, packages, all listings.
 - ~~**Pagination**~~ — DONE (Session 29). 50 per page, prev/next, `countVehicles()` + `buildFilterConditions()` helper.
-- **Price history visualization** — Phase 3 dealer intelligence depends on accumulated price_history data. Automated scraping is now running (every 6h via GH Actions) so data is accumulating. UI planned Session 31.
+- ~~**Price history visualization**~~ — DONE (Session 33). SVG step-line chart in detail panel, PriceTrendBadge in table/cards, PriceHistorySection with empty state handling. PRICE_TRENDS_CTE computes trend via LAG() window function.
 - **Smart alerts** — Phase 6: price drop notifications, new inventory alerts.
 
 ### Data Quality
@@ -239,7 +239,7 @@ _Revisit these as the project evolves. Not blocking current work._
 
 ## Current State
 
-_Last updated: 2026-03-18 (Session 32)_
+_Last updated: 2026-03-19 (Session 33)_
 
 - **Branch:** main
 - **Automated scraping:** GitHub Actions cron every 6h, SQLite DB persisted to Cloudflare R2. Working scrapers: DDC Classic (10 dealers), DDC Cosmos (5 dealers), Algolia (2 dealers). DDC parallelized at concurrency 3. ~4,800+ vehicles per run.
@@ -256,7 +256,10 @@ _Last updated: 2026-03-18 (Session 32)_
 - **AI search:** System prompt now uses live stats from DB (dealer count, makes, models, price ranges) instead of hardcoded values.
 - **Observability:** All silent catch blocks in scrapers and scoring now log via `console.warn()` with structured prefixes.
 - **Frontend:** AbortController on all fetches prevents stale-response bugs. Cache headers on `/api/stats` and `/api/dealers`.
+- **Price history UI:** Hand-built SVG step-line chart in detail panel (no charting library). PriceTrendBadge (emerald down / red up) in inventory table and mobile cards. PriceHistorySection with chart or "Price stable since..." empty state. PRICE_TRENDS_CTE via LAG() window function in getVehicles(). Enhanced `/api/price-history/[vin]` with summary object. Client-side dedup for legacy duplicates.
+- **DB corruption fix:** R2 database was corrupted (March 17-19). Recovered by merging March 16 backup with recovered vehicles/price_history, then re-scraped. Repaired DB uploaded to R2.
 - **Known schema issue:** `scrape_log` uses `started_at`/`completed_at`, not `created_at` — session protocol DB check query needs updating.
+- **Known performance:** `PRICE_TRENDS_CTE` adds ~330ms to `getVehicles()` by scanning all price_history. Consider materializing as a column if this becomes a bottleneck.
 
 ### Next Sessions (planned)
 
@@ -265,5 +268,6 @@ _Last updated: 2026-03-18 (Session 32)_
 3. ~~**Session 30: API hardening**~~ — DONE. Zod validation, SCRAPE_API_KEY rotation, new endpoints.
 4. ~~**Session 31: Dealer expansion (infrastructure + wave 1)**~~ — DONE. Fixed markMissingAsRemoved, parallelized DDC, added Cosmos API support, onboarded 5 dealers (Porsche x2, Lexus x2, MB Marin), fixed Lexus Stevens Creek. Platform detection script + dealer research (37 dealers cataloged).
 5. ~~**Session 32: Data quality + efficiency improvements**~~ — DONE. Externalized dealer config to JSON, separated MSRP from asking price, fixed re-listing first_seen reset, fixed Cosmos packages inflation, added scraper logging, live AI search context, AbortController on fetches, cache headers, 242 tests.
-6. **Session 33: Price history UI** — Timeline in detail panel, price stability badges, scrape health dashboard.
+6. ~~**Session 33: Price history UI**~~ — DONE. SVG step-line chart in detail panel, PriceTrendBadge in table/cards, enhanced price-history API with summary. Also fixed R2 DB corruption.
 7. **Session 34: Comparison redesign + MCP enrichment** — Full-screen comparison overlay, packages visibility.
+8. **Session 35: Scrape health dashboard** — Visual timeline of scrape runs, per-dealer success rates.
