@@ -2,11 +2,11 @@
 
 Track new and used car inventory across Bay Area dealerships. Browse top deals with a quality-scored, filterable dashboard, side-by-side comparison, and AI-powered natural language search.
 
-**3,500+ vehicles across 12 dealers and 7 makes**, scraped every 6 hours via GitHub Actions.
+**4,800+ vehicles across 17 dealers and 10 makes**, scraped every 6 hours via GitHub Actions.
 
 ## Features
 
-- **Multi-make inventory tracking** — BMW, Mercedes-Benz, Land Rover, Jaguar, MINI, Volvo, Cadillac across 12 dealerships
+- **Multi-make inventory tracking** — BMW, Mercedes-Benz, Porsche, Lexus, Land Rover, Jaguar, MINI, Volvo, Cadillac across 17 dealerships
 - **Quality scoring** — 0–100 score based on price vs. market average, days on lot, condition, mileage, availability, and features
 - **Vehicle detail panel** — click any row for full specs, packages, all listings across dealers, and external link
 - **Pagination** — 50 vehicles per page with prev/next navigation
@@ -31,7 +31,7 @@ Every vehicle is scored 0–100 after each scrape:
 | In-stock status | 0–10 | Available now beats in-transit |
 | Packages/features | 0–10 | More features = better value |
 
-## Current Dealers (12)
+## Current Dealers (17)
 
 | Dealer | City | Make | Scraper |
 |--------|------|------|---------|
@@ -42,10 +42,15 @@ Every vehicle is scored 0–100 after each scrape:
 | Peter Pan BMW | San Mateo | BMW | Algolia API |
 | BMW of San Francisco | San Francisco | BMW | Algolia API |
 | Mercedes-Benz of Stevens Creek | San Jose | Mercedes-Benz | DDC (Playwright) |
-| Volvo Cars Walnut Creek | Walnut Creek | Volvo | DDC (Playwright) |
-| MINI of Stevens Creek | Santa Clara | MINI | DDC (Playwright) |
+| Mercedes-Benz of Marin | San Rafael | Mercedes-Benz | DDC Cosmos (Playwright) |
+| Porsche San Francisco | San Francisco | Porsche | DDC Cosmos (Playwright) |
+| Porsche Marin | Mill Valley | Porsche | DDC Cosmos (Playwright) |
+| Lexus Stevens Creek | San Jose | Lexus | DDC Cosmos (Playwright) |
+| Lexus of Fremont | Fremont | Lexus | DDC Cosmos (Playwright) |
 | Land Rover Marin | Corte Madera | Land Rover | DDC (Playwright) |
 | Jaguar Marin | Corte Madera | Jaguar | DDC (Playwright) |
+| MINI of Stevens Creek | Santa Clara | MINI | DDC (Playwright) |
+| Volvo Cars Walnut Creek | Walnut Creek | Volvo | DDC (Playwright) |
 | Putnam Cadillac | Burlingame | Cadillac | DDC (Playwright) |
 
 ## Tech Stack
@@ -56,7 +61,7 @@ Every vehicle is scored 0–100 after each scrape:
 - **Algolia Search API** for Algolia-powered dealer sites
 - **Better SQLite3** with WAL mode, CTE-based queries, composite indexes
 - **Zod** for API input validation
-- **Vitest** — 230 tests (scoring, parsers, db queries, validation)
+- **Vitest** — 235 tests (scoring, parsers, db queries, validation)
 - **GitHub Actions** — automated scraping every 6h + test CI on push/PR
 - **Cloudflare R2** — SQLite database persistence between CI runs
 - **MCP (Model Context Protocol)** — 10-tool server for conversational database access

@@ -71,24 +71,31 @@ The `getVehicles()` query JOINs vehicles with cheapest active listing per VIN an
 
 ---
 
-## Active Dealers (12 working)
+## Active Dealers (17 working)
 
 | Dealer | City | Make | Platform | Scraper |
 |--------|------|------|----------|---------|
-| Mercedes-Benz of Stevens Creek | San Jose | Mercedes-Benz | DDC/DealerOn | ddc.ts |
-| Stevens Creek BMW | San Jose | BMW | DDC/DealerOn | ddc.ts |
-| BMW of Mountain View | Mountain View | BMW | DDC/DealerOn | ddc.ts |
+| Stevens Creek BMW | San Jose | BMW | DDC Classic | ddc.ts |
+| BMW of Mountain View | Mountain View | BMW | DDC Classic | ddc.ts |
+| BMW of Fremont | Fremont | BMW | DDC Classic | ddc.ts |
+| BMW of San Rafael | San Rafael | BMW | DDC Classic | ddc.ts |
 | Peter Pan BMW | San Mateo | BMW | Algolia | algolia.ts |
-| BMW of Fremont | Fremont | BMW | DDC/DealerOn | ddc.ts |
-| BMW of San Rafael | San Rafael | BMW | DDC/DealerOn | ddc.ts |
 | BMW of San Francisco | San Francisco | BMW | Algolia | algolia.ts |
-| Volvo Cars Walnut Creek | Walnut Creek | Volvo | DDC/DealerOn | ddc.ts |
-| MINI of Stevens Creek | Santa Clara | MINI | DDC/DealerOn | ddc.ts |
-| Land Rover Marin | Corte Madera | Land Rover | DDC/DealerOn | ddc.ts |
-| Putnam Cadillac | Burlingame | Cadillac | DDC/DealerOn | ddc.ts |
-| Jaguar Marin | Corte Madera | Jaguar | DDC/DealerOn | ddc.ts |
+| Mercedes-Benz of Stevens Creek | San Jose | Mercedes-Benz | DDC Classic | ddc.ts |
+| Mercedes-Benz of Marin | San Rafael | Mercedes-Benz | DDC Cosmos | ddc.ts |
+| Porsche San Francisco | San Francisco | Porsche | DDC Cosmos | ddc.ts |
+| Porsche Marin | Mill Valley | Porsche | DDC Cosmos | ddc.ts |
+| Lexus Stevens Creek | San Jose | Lexus | DDC Cosmos | ddc.ts |
+| Lexus of Fremont | Fremont | Lexus | DDC Cosmos | ddc.ts |
+| Land Rover Marin | Corte Madera | Land Rover | DDC Classic | ddc.ts |
+| Jaguar Marin | Corte Madera | Jaguar | DDC Classic | ddc.ts |
+| MINI of Stevens Creek | Santa Clara | MINI | DDC Classic | ddc.ts |
+| Volvo Cars Walnut Creek | Walnut Creek | Volvo | DDC Classic | ddc.ts |
+| Putnam Cadillac | Burlingame | Cadillac | DDC Classic | ddc.ts |
 
-**Not working:** East Bay BMW (Pleasanton) — Akamai bot manager blocks all automated access. Lexus Stevens Creek — DDC confirmed but search URL needs verification.
+**Not working:** East Bay BMW (Pleasanton) — Akamai bot manager blocks all automated access.
+
+**DDC API variants:** The scraper auto-detects Classic (`getInventory`) vs Cosmos (`vhcliaa/vehicle-pages/cosmos`) API. Cosmos uses `pt=` for page number, `pn=` for page size.
 
 ---
 
@@ -189,8 +196,11 @@ Short imperative subject line. Group related changes (e.g., "Add Cars.com scrape
 - MCP server registered in `~/.claude.json` (project: `/Users/dsherman`) and `.mcp.json` (project root). Validated and working.
 - The 3-branch parallel instance experiment (Session 19) didn't work as designed — instances all committed to working directory instead of separate branches. Avoid this pattern; use sequential sessions instead.
 - ~~**N+1 query in `getVehicles()`**~~ — FIXED (Session 30). Replaced correlated subqueries with CTEs using ROW_NUMBER()/LAG() window functions. Added composite indexes.
+- ~~**`markMissingAsRemoved` data integrity bug**~~ — FIXED (Session 31). Now only removes listings for dealers that were actually scraped. Prevents false removal when a dealer times out.
 - **Price/MSRP conflation** — `upsertVehicles` uses `const price = v.msrp` (line 458). Scrapers report asking price in the msrp field. No way to distinguish MSRP from asking price yet.
 - **`first_seen` stale on re-listing** — if a vehicle is removed then reappears, `first_seen` retains original date, inflating days-on-lot in quality score.
+- **Cosmos `packages` inflated** — `parseCosmosInventory` uses `vc.Features` (15-20 individual features) instead of package names (2-3). Quality score packages factor gives Cosmos vehicles artificially higher scores.
+- **No tests for `parseCosmosInventory`** — exported function but no unit tests. Tech debt from Session 31.
 
 ---
 
@@ -229,15 +239,16 @@ _Revisit these as the project evolves. Not blocking current work._
 
 ## Current State
 
-_Last updated: 2026-03-18 (Session 30)_
+_Last updated: 2026-03-18 (Session 31)_
 
 - **Branch:** main
-- **Automated scraping:** GitHub Actions cron every 6h, SQLite DB persisted to Cloudflare R2. Working scrapers: DDC (10 dealers), Algolia (2 dealers). ~3,500 vehicles per run. ~8 min per CI run.
-- **Multi-make expansion:** 7 makes across 12 dealers (BMW, Mercedes-Benz, Land Rover, Jaguar, MINI, Volvo, Cadillac). Price history accumulating for all makes since 2026-03-17.
-- **DB:** ~3,476 vehicles across 12 dealers, 7 makes. Local DB syncs from R2 via `./scripts/sync-db.sh`. Queries use CTEs with ROW_NUMBER()/LAG() window functions (no more N+1). Composite indexes on listings and price_history.
+- **Automated scraping:** GitHub Actions cron every 6h, SQLite DB persisted to Cloudflare R2. Working scrapers: DDC Classic (10 dealers), DDC Cosmos (5 dealers), Algolia (2 dealers). DDC parallelized at concurrency 3. ~4,800+ vehicles per run.
+- **Multi-make expansion:** 10 makes across 17 dealers (BMW, Mercedes-Benz, Porsche, Lexus, Land Rover, Jaguar, MINI, Volvo, Cadillac). Price history accumulating since 2026-03-17.
+- **DB:** ~4,800+ vehicles across 17 dealers, 10 makes. Local DB syncs from R2 via `./scripts/sync-db.sh`. Queries use CTEs with ROW_NUMBER()/LAG() window functions. Composite indexes on listings and price_history. `markMissingAsRemoved` scoped to successfully-scraped dealers only.
 - **API hardening:** Zod input validation on all routes. New endpoints: `/api/price-history/[vin]`, `/api/scrape-health`. SCRAPE_API_KEY rotated with startup guard. Price history dedup in upsertVehicles().
-- **Tests:** 228 tests via vitest (scoring: 47, DDC parser: 60, Algolia parser: 48, db queries: 38, validation: 35). CI workflow `.github/workflows/test.yml` runs on push/PR.
-- **MCP server:** Registered and validated. 6 tools working.
+- **Dealer research:** 37 Bay Area dealers cataloged in `data/dealers.json` with platform detection results. Platform detection script at `scripts/detect-platform.ts`.
+- **Tests:** 235 tests via vitest (scoring: 47, DDC parser: 60, Algolia parser: 48, db queries: 43, validation: 37). CI workflow `.github/workflows/test.yml` runs on push/PR.
+- **MCP server:** Registered and validated. 10 tools working.
 - **Known schema issue:** `scrape_log` uses `started_at`/`completed_at`, not `created_at` — session protocol DB check query needs updating.
 
 ### Next Sessions (planned)
@@ -245,5 +256,7 @@ _Last updated: 2026-03-18 (Session 30)_
 1. ~~**Session 28: Vehicle detail panel + pagination**~~ — DONE.
 2. ~~**Session 29: Database performance**~~ — DONE (Session 30). CTE rewrites, composite indexes, stats consolidation, price history dedup.
 3. ~~**Session 30: API hardening**~~ — DONE. Zod validation, SCRAPE_API_KEY rotation, new endpoints.
-4. **Session 31: Price history UI** — Timeline in detail panel, price stability badges, scrape health dashboard.
-5. **Session 32: Comparison redesign + MCP enrichment** — Full-screen comparison overlay, packages visibility, `get_price_history` MCP tool.
+4. ~~**Session 31: Dealer expansion (infrastructure + wave 1)**~~ — DONE. Fixed markMissingAsRemoved, parallelized DDC, added Cosmos API support, onboarded 5 dealers (Porsche x2, Lexus x2, MB Marin), fixed Lexus Stevens Creek. Platform detection script + dealer research (37 dealers cataloged).
+5. **Session 32: Dealer expansion (wave 2)** — Volume brands (Toyota, Honda, Subaru, etc.), per-dealer health monitoring, scrape health dashboard.
+6. **Session 33: Price history UI** — Timeline in detail panel, price stability badges, scrape health dashboard.
+7. **Session 34: Comparison redesign + MCP enrichment** — Full-screen comparison overlay, packages visibility.
