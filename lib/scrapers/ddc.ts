@@ -403,15 +403,20 @@ async function scrapeDealer(
     // Paginate: Cosmos API
     if (useCosmos && cosmosApiUrl && totalCount > vehicleMap.size) {
       const pageSize = 96; // Cosmos supports 12, 24, 48, 96
-      // Build the base URL with pageSize=96 to fetch more per request
-      const cosmosBase = cosmosApiUrl.replace(/&pn=\d+/, "").replace(/pn=\d+/, "");
+      // Strip any existing pn/pt params, add pn=96 for max page size
+      const cosmosBase = cosmosApiUrl
+        .replace(/[&?]pn=\d+/g, "")
+        .replace(/[&?]pt=\d+/g, "")
+        .replace(/[&?]displayCardsShown=[^&]*/g, "");
       const separator = cosmosBase.includes("?") ? "&" : "?";
       let pageNum = 2;
+      const maxPages = Math.ceil(totalCount / pageSize) + 1; // safety cap
 
-      while (vehicleMap.size < totalCount) {
-        const fetchUrl = `${cosmosBase}${separator}pn=${pageSize}&pg=${pageNum}`;
+      while (vehicleMap.size < totalCount && pageNum <= maxPages) {
+        const fetchUrl = `${cosmosBase}${separator}pn=${pageSize}&pt=${pageNum}&displayCardsShown=${vehicleMap.size}`;
         console.log(`  [DDC] ${dealer.name}: cosmos page ${pageNum} (have ${vehicleMap.size}/${totalCount})...`);
 
+        const prevSize = vehicleMap.size;
         const pageData = await page.evaluate(async (url: string) => {
           try {
             const resp = await fetch(url);
@@ -429,6 +434,9 @@ async function scrapeDealer(
         } else {
           break;
         }
+
+        // If no new VINs were added, stop to avoid infinite loop
+        if (vehicleMap.size === prevSize) break;
 
         pageNum++;
         await randomDelay(1000, 2000);
