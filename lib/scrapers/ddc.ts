@@ -270,10 +270,28 @@ async function scrapeDealer(
       timeout,
     });
 
-    await page.waitForTimeout(8000);
+    // Wait for either Classic DDC (getInventory) or Cosmos API response
+    // instead of a fixed 8s timeout — handles slow local page loads
+    try {
+      await page.waitForResponse(
+        (resp) =>
+          ((resp.url().includes("getInventory") && resp.request().method() === "POST") ||
+           (resp.url().includes("vhcliaa") && resp.url().includes("vehicles"))) &&
+          resp.status() === 200,
+        { timeout: 20000 }
+      );
+    } catch {
+      console.warn(`  [DDC] ${dealer.name}: no API response intercepted within 20s`);
+    }
+    // Brief extra wait for response handler to finish async JSON parsing
+    await page.waitForTimeout(1000);
 
+    const diagnostics = [
+      !useCosmos && vehicleMap.size === 0 ? "(WARNING: no vehicles captured)" : "",
+      !useCosmos && !capturedRequestBody ? "(no request body for pagination)" : "",
+    ].filter(Boolean).join(" ");
     console.log(
-      `  [DDC] ${dealer.name}: ${vehicleMap.size} vehicles (${totalCount} total) [${useCosmos ? "cosmos" : "classic"}]`
+      `  [DDC] ${dealer.name}: ${vehicleMap.size} vehicles (${totalCount} total) [${useCosmos ? "cosmos" : "classic"}]${diagnostics ? " " + diagnostics : ""}`
     );
 
     // Paginate: Cosmos API

@@ -405,7 +405,7 @@ server.tool(
 // --- get_scrape_health ---
 server.tool(
   "get_scrape_health",
-  "Get scrape health info: last successful scrape time, recent scrape history (last 10), and current active vehicle count.",
+  "Get scrape health info: last successful scrape time, recent scrape history (last 20), per-source health summaries, and current active vehicle count.",
   {},
   async () => {
     const lastScrapeTime = getLastScrapeTime();
@@ -413,18 +413,10 @@ server.tool(
 
     const recentScrapes = db
       .prepare(
-        `SELECT id, started_at, completed_at, vehicles_found, vehicles_new, status, error_message
-         FROM scrape_log ORDER BY id DESC LIMIT 10`
+        `SELECT id, started_at, completed_at, vehicles_found, vehicles_new, status, error_message, source
+         FROM scrape_log ORDER BY id DESC LIMIT 20`
       )
-      .all() as Array<{
-      id: number;
-      started_at: string;
-      completed_at: string;
-      vehicles_found: number;
-      vehicles_new: number;
-      status: string;
-      error_message: string | null;
-    }>;
+      .all();
 
     const vehicleCounts = db
       .prepare(
@@ -434,6 +426,50 @@ server.tool(
          FROM vehicles WHERE removed_at IS NULL`
       )
       .get() as { active: number; removed: number };
+
+    const sourceHealthRows = db
+      .prepare(
+        `SELECT
+          source,
+          MAX(CASE WHEN status = 'success' THEN completed_at END) as last_success,
+          SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successes,
+          SUM(CASE WHEN status != 'success' THEN 1 ELSE 0 END) as errors,
+          COUNT(*) as total_runs
+         FROM scrape_log
+         WHERE source IS NOT NULL
+         GROUP BY source`
+      )
+      .all() as Array<{
+      source: string;
+      last_success: string | null;
+      successes: number;
+      errors: number;
+      total_runs: number;
+    }>;
+
+    const lastRunVehicles = db
+      .prepare(
+        `SELECT source, vehicles_found as last_vehicles
+         FROM scrape_log s1
+         WHERE status = 'success' AND source IS NOT NULL
+           AND id = (SELECT MAX(id) FROM scrape_log s2 WHERE s2.source = s1.source AND s2.status = 'success')`
+      )
+      .all() as Array<{ source: string; last_vehicles: number }>;
+
+    const lastVehiclesBySource = Object.fromEntries(
+      lastRunVehicles.map((r: { source: string; last_vehicles: number }) => [r.source, r.last_vehicles])
+    );
+
+    const source_health: Record<string, unknown> = {};
+    for (const row of sourceHealthRows) {
+      source_health[row.source] = {
+        last_success: row.last_success,
+        last_vehicles: lastVehiclesBySource[row.source] || 0,
+        successes: row.successes,
+        errors: row.errors,
+        total_runs: row.total_runs,
+      };
+    }
 
     return {
       content: [
@@ -445,6 +481,7 @@ server.tool(
               active_vehicles: vehicleCounts.active,
               removed_vehicles: vehicleCounts.removed,
               recent_scrapes: recentScrapes,
+              source_health,
             },
             null,
             2

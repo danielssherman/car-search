@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import type { Vehicle, InventoryFilters, InventoryStats, DealerInfo } from "@/lib/types";
 import { triggerScrape } from "./actions";
 import { StatsBar } from "@/components/StatsBar";
+import { ScrapeHealthBar } from "@/components/ScrapeHealthBar";
 import { FilterBar } from "@/components/FilterBar";
 import { InventoryTable } from "@/components/InventoryTable";
 import { ComparePanel } from "@/components/ComparePanel";
@@ -408,6 +409,11 @@ function DashboardContent() {
       {/* Stats */}
       <div className="mx-auto max-w-7xl px-4 py-4 md:px-6">
         <StatsBar stats={stats} loading={loading && !aiExplanation} />
+      </div>
+
+      {/* Scrape Health */}
+      <div className="mx-auto max-w-7xl px-4 pb-2 md:px-6">
+        <ScrapeHealthBar />
       </div>
 
       {/* Filters */}

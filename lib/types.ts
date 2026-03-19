@@ -137,6 +137,22 @@ export interface PriceHistoryResponse {
   summary: PriceHistorySummary | null;
 }
 
+export interface SourceHealth {
+  last_success: string | null;
+  last_vehicles: number;
+  successes: number;
+  errors: number;
+  total_runs: number;
+}
+
+export interface ScrapeHealthResponse {
+  last_successful_scrape: string | null;
+  active_vehicles: number;
+  removed_vehicles: number;
+  recent_scrapes: ScrapeLog[];
+  source_health: Record<string, SourceHealth>;
+}
+
 export interface ScrapedVehicle {
   vin: string;
   year: number;
