@@ -174,6 +174,42 @@ Short imperative subject line. Group related changes (e.g., "Add Cars.com scrape
 
 ---
 
+## Multi-Agent Build Playbook
+
+Architecture is parallel-friendly: single DB write path (`scrapers → cron → upsertVehicles`), read-only paths elsewhere, minimally coupled subsystems. Sessions 31, 33, 34, 35 each bundled 2–3 threads that could have been parallel Agent calls. Prefer fan-out when a task decomposes into independent units.
+
+### When to fan out
+
+| Pattern | Split example |
+|---|---|
+| Per-dealer onboarding | One agent per dealer — probe platform → append to `data/dealers.json` → dry-run verify |
+| Per-scraper changes | One agent per `lib/scrapers/*.ts` (ddc, algolia, carscom, cargurus are independent) |
+| UI + backend feature | Backend agent (`/api/` route + DB query/CTE) ∥ UI agent (React components) |
+| Feature + tests | Test-writer agent (failing vitest cases from spec) ∥ implementer agent |
+| Adversarial review | 3 parallel agents: security / performance / scope-creep |
+| Research / exploration | Multiple Explore agents per region or subsystem |
+
+### Rules
+
+1. **Contract-first.** Update `lib/types.ts`, `lib/scrapers/types.ts`, Zod schemas in `lib/validation.ts`, or DB schema in `migrateSchema()` in the main thread BEFORE spawning agents. Each agent reads the same contract.
+2. **Always use `isolation: "worktree"`** on parallel Agent calls. This is the fix for the Session 19 failure (shared working dir). Worktrees auto-clean if the agent makes no commits.
+3. **Single message, multiple Agent calls.** Parallelism only happens when dispatched together.
+4. **Serialize shared-file edits.** `CLAUDE.md`, `README.md`, `data/dealers.json` are edited by one final agent after fan-out, never in parallel.
+5. **Cap at 3–4 agents.** More creates coordination overhead.
+
+### Template prompts
+
+**Per-dealer onboarding pool:**
+> "Onboard these N dealers. Spawn one Agent per dealer with `isolation: worktree`. Each: (1) run `scripts/detect-platform.ts` against the URL, (2) if DDC/Cosmos/Algolia, append to `data/dealers.json` and dry-run, (3) if new platform, stop and report. Return table: dealer / platform / status. I'll merge JSON."
+
+**Contract-first feature fan-out:**
+> "Updated `lib/types.ts` with fields X/Y/Z. Now spawn 3 parallel agents with `isolation: worktree`: (a) `lib/scrapers/ddc.ts` populates X from the Cosmos response, (b) `lib/db.ts` adds migration + upsert for X/Y/Z, (c) `InventoryTable.tsx` + `VehicleCard.tsx` render the new field. Each edits only its files."
+
+**Feature + test split:**
+> "Spec is in the plan file. Spawn test-writer agent in parallel with feature agent. Test agent writes failing vitest cases covering edge cases from the spec. Feature agent implements `lib/X.ts`. Both with `isolation: worktree`."
+
+---
+
 ## Product Roadmap (7 phases)
 
 | Phase | Status | Description |
@@ -194,7 +230,7 @@ Short imperative subject line. Group related changes (e.g., "Add Cars.com scrape
 
 - ~~No automated test suite~~ — DONE (Session 28). 155 tests via vitest: scoring (47), DDC parser (60), Algolia parser (48). CI workflow at `.github/workflows/test.yml`.
 - MCP server registered in `~/.claude.json` (project: `/Users/dsherman`) and `.mcp.json` (project root). Validated and working.
-- The 3-branch parallel instance experiment (Session 19) didn't work as designed — instances all committed to working directory instead of separate branches. Avoid this pattern; use sequential sessions instead.
+- The 3-branch parallel instance experiment (Session 19) failed because all instances shared the same working directory. The fix is `isolation: "worktree"` on the Agent tool (creates a fresh git worktree per agent, auto-cleans if no commits). See "Multi-Agent Build Playbook" below.
 - ~~**N+1 query in `getVehicles()`**~~ — FIXED (Session 30). Replaced correlated subqueries with CTEs using ROW_NUMBER()/LAG() window functions. Added composite indexes.
 - ~~**`markMissingAsRemoved` data integrity bug**~~ — FIXED (Session 31). Now only removes listings for dealers that were actually scraped. Prevents false removal when a dealer times out.
 - ~~**Price/MSRP conflation**~~ — FIXED (Session 32). Scrapers now separate `msrp` (true MSRP) from `asking_price` (dealer asking price). `upsertVehicles` uses `asking_price` for listings.price and `msrp` for listings.msrp.
