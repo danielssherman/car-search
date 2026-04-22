@@ -5,10 +5,10 @@
       "command": "npx",
       "args": [
         "tsx",
-        "/Users/dsherman/bay-area-bmw-tracker/mcp-server/index.ts"
+        "/Users/dsherman/Projects/bay-area-bmw-tracker/mcp-server/index.ts"
       ],
       "env": {
-        "DATABASE_PATH": "/Users/dsherman/bay-area-bmw-tracker/data/inventory.db",
+        "DATABASE_PATH": "/Users/dsherman/Projects/bay-area-bmw-tracker/data/inventory.db",
         "ALGOLIA_APP_ID": "SEWJN80HTN",
         "ALGOLIA_API_KEY": "179608f32563367799314290254e3e44"
       }

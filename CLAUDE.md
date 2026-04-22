@@ -4,7 +4,7 @@
 Full-stack Next.js app that scrapes BMW inventory (expanding to multi-make) from Bay Area dealerships, stores in SQLite, computes quality scores, tracks price history, and presents a dark-themed dashboard with filtering, sorting, comparison, and dealer intelligence.
 
 **Repo:** https://github.com/danielssherman/car-search
-**Local path:** ~/bay-area-bmw-tracker/
+**Local path:** ~/Projects/bay-area-bmw-tracker/
 **Owner:** Daniel Sherman (danielssherman)
 
 ---
@@ -133,9 +133,9 @@ Recalculated after every scrape via `updateQualityScores()`.
   "mcpServers": {
     "car-tracker": {
       "command": "npx",
-      "args": ["tsx", "/Users/dsherman/bay-area-bmw-tracker/mcp-server/index.ts"],
+      "args": ["tsx", "/Users/dsherman/Projects/bay-area-bmw-tracker/mcp-server/index.ts"],
       "env": {
-        "DATABASE_PATH": "/Users/dsherman/bay-area-bmw-tracker/data/inventory.db"
+        "DATABASE_PATH": "/Users/dsherman/Projects/bay-area-bmw-tracker/data/inventory.db"
       }
     }
   }
@@ -160,7 +160,7 @@ Recalculated after every scrape via `updateQualityScores()`.
 
 ### On session start:
 1. Read this file
-2. Read PROJECT_MEMORY.md and PRODUCT_PLAN.md from OneDrive if referenced: `~/OneDrive - West Monroe/Personal/Bay Area Car Tracker/`
+2. Read PROJECT_MEMORY.md and PRODUCT_PLAN.md if referenced: `~/Areas/personal-engineering/bay-area-bmw-tracker-onedrive-docs/`
 3. Check `git status` and `git log --oneline -5` for current state
 4. Check DB state: `SELECT COUNT(*) FROM vehicles; SELECT COUNT(*) FROM listings; SELECT MAX(created_at) FROM scrape_log;`
 

@@ -27,9 +27,9 @@ Add this to your `~/.claude.json` (global) or project `.claude.json`:
   "mcpServers": {
     "car-tracker": {
       "command": "npx",
-      "args": ["tsx", "/Users/dsherman/bay-area-bmw-tracker/mcp-server/index.ts"],
+      "args": ["tsx", "/Users/dsherman/Projects/bay-area-bmw-tracker/mcp-server/index.ts"],
       "env": {
-        "DATABASE_PATH": "/Users/dsherman/bay-area-bmw-tracker/data/inventory.db"
+        "DATABASE_PATH": "/Users/dsherman/Projects/bay-area-bmw-tracker/data/inventory.db"
       }
     }
   }
